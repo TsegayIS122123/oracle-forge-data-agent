@@ -82,7 +82,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:26 UTC
+**Run timestamp:** 2026-04-11 12:30 UTC
 **Model used:** anthropic/claude-sonnet-4
 **Document tested:** kb/architecture/claude_code_memory.md
 **Overall result:** PASS
@@ -101,17 +101,15 @@ Forbidden contradictions:
   - [x] Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
 
 **Actual answer:**
-Based on the document, MEMORY.md serves as a small index file in Claude Code's memory system with the following purposes:
+Based on the document, MEMORY.md serves as a small index file in Claude Code's Layer 1 memory system. Its purpose is to:
 
-1. **Index function**: It lists every other KB document by name with a one-sentence description, functioning like a table of contents that points to topic files rather than containing content itself.
+1. **Function as an index** - It lists every other knowledge base document by name with a one-sentence description
+2. **Enable efficient knowledge discovery** - The agent reads this file first at session start to know what knowledge is available
+3. **Guide selective loading** - It helps the agent decide what to load next based on relevance
 
-2. **Session initialization**: The agent reads this file first at session start to know what knowledge is available.
+The token limit that applies to MEMORY.md is **~200 tokens maximum**. The document emphasizes that it is "never more than ~200 tokens" and states that "growing it beyond this defeats its purpose as an index."
 
-3. **Decision making**: After reading MEMORY.md, the agent uses it to decide what topic files to load next based on relevance to the current question.
-
-**Token limit**: MEMORY.md is constrained to approximately 200 tokens and never more than this limit. The document explicitly states that "Growing it beyond this defeats its purpose as an index."
-
-This design keeps MEMORY.md lightweight and focused purely on its indexing role, allowing the agent to quickly understand what knowledge exists without consuming significant context window space.
+The document describes MEMORY.md as functioning "like a table of contents — pointing to topic files, not containing content itself." It's explicitly noted that MEMORY.md is "not a knowledge document itself" but rather an index that enables the agent to selectively load the appropriate Layer 2 topic files (~300-400 tokens each) on demand.
 
 **Grader reasoning:** All six required concepts are clearly present and no forbidden contradictions were found.
 
@@ -132,21 +130,20 @@ This design keeps MEMORY.md lightweight and focused purely on its indexing role,
   - [x] For Oracle Forge it means reviewing the corrections log after agent runs and absorbing verified fixes into domain documents
 
 **Actual answer:**
-Based on the document, autoDream is a background consolidation process with the following characteristics:
+Based on the document, autoDream is a background process with the following characteristics:
 
-**What it is:** A background process that consolidates learning from completed sessions.
+**What it is:** autoDream is a consolidation process implemented in the `src/tasks/DreamTask/` and `src/services/autoDream/` directories of the Claude Code codebase.
 
-**When it runs:** After sessions end — not during sessions. It's specifically a post-session process.
+**When it runs:** autoDream runs after sessions end — not during sessions. It operates as a background process.
 
-**What it does to topic files:** 
-- Reviews what was learned during the session (corrections made, successful query patterns, new business term definitions discovered)
-- Consolidates these learnings back into the relevant topic files
-- Removes old, superseded information
-- Results in topic files that are smaller and more precise than before the session
+**What it does to topic files:** autoDream reviews what was learned during the session, including:
+- Corrections made
+- Successful query patterns  
+- New business term definitions discovered
 
-**Key purpose:** This is the mechanism that prevents the knowledge base from growing into noise. For Oracle Forge specifically, this means reviewing the corrections log after agent runs, absorbing verified fixes into domain documents, then removing those entries from the corrections log once they have been absorbed.
+It then consolidates these learnings back into the relevant topic files. Importantly, old, superseded information is removed during this process. The result is that topic files after consolidation are smaller and more precise than before the session.
 
-The process is implemented in two specific directories in the codebase: `src/tasks/DreamTask/` and `src/services/autoDream/`.
+This consolidation mechanism prevents the knowledge base from growing into noise. For Oracle Forge specifically, this means reviewing the corrections log after agent runs, absorbing verified fixes into domain documents, and then removing those entries from the corrections log once they have been absorbed.
 
 **Grader reasoning:** All eight required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
@@ -165,17 +162,21 @@ The process is implemented in two specific directories in the codebase: `src/tas
   - [x] This is why Oracle Forge uses separate tools per database type rather than one general query tool
 
 **Actual answer:**
-Based on the document, Claude Code uses 40+ tools with tight domain boundaries because of their tool scoping philosophy that "each tool has a single tight responsibility." The document explains two key reasons for this approach:
+Based on the document, Claude Code uses 40+ tools with tight domain boundaries because of their tool scoping philosophy that "each tool has a single tight responsibility." The document states this as "the rule — one tool, one responsibility, a named domain boundary."
 
-1. **Failures are diagnosable**: When a tool fails, the agent knows exactly which tool failed and why. Tight domain boundaries make it clear where the problem occurred.
+The specific reasons given are:
 
-2. **Failures are recoverable**: The agent knows exactly what to fix because the failure is isolated to a specific, well-defined responsibility.
+1. **Reliability**: "A tool that does one thing precisely is more reliable than a tool that tries to do three things loosely."
 
-The document states that "A tool that does one thing precisely is more reliable than a tool that tries to do three things loosely." This principle prioritizes reliability and maintainability over having fewer tools.
+2. **Diagnosable failures**: "Tight domain boundaries make failures diagnosable — the agent knows exactly which tool failed."
 
-The document also notes that this is "directly why the Oracle Forge agent uses separate tools per database type rather than a single 'query database' tool that switches internally" - demonstrating how this philosophy gets applied in practice by creating specialized tools rather than general-purpose ones with internal switching logic.
+3. **Recoverable failures**: "Tight domain boundaries make failures recoverable — the agent knows exactly what to fix."
 
-**Grader reasoning:** All six required concepts are clearly present in the actual answer with no forbidden contradictions.
+When a tool fails, the agent has precise knowledge of which specific tool failed and why, rather than having to debug a complex general-purpose tool where the failure point could be unclear.
+
+The document provides a concrete example: "This is directly why the Oracle Forge agent uses separate tools per database type rather than a single 'query database' tool that switches internally."
+
+**Grader reasoning:** All six required concepts are clearly present in the actual answer with accurate quotes and explanations, and no forbidden contradictions were found.
 
 ---
 
@@ -194,16 +195,13 @@ The document also notes that this is "directly why the Oracle Forge agent uses s
 **Actual answer:**
 Based on the document, session transcripts in Claude Code's memory system are:
 
-**What they are:**
-Session transcripts are logs of past agent runs that contain which queries were asked, what tools were called, what results came back, and what the final answer was.
+**What they are:** Session transcripts are logs of past agent runs that record which queries were asked, what tools were called, what results came back, and what the final answer was.
 
-**How they are accessed:**
-They are searched only when a new question closely resembles a past one. The agent never pre-loads them into context - it only searches them when needed.
+**How they are accessed:** They are searched only when a new question closely resembles a past one. The agent never pre-loads them into context but searches them on demand.
 
-**Why they are never pre-loaded:**
-The document states that "Searching is cheap; pre-loading is expensive." The context window budget management in `src/QueryEngine.ts` enforces this "never-pre-load discipline" for session transcripts. This approach preserves valuable context space for more immediately relevant information like the MEMORY.md index and topic files that are needed for the current session.
+**Why they are never pre-loaded:** The document states that "Searching is cheap; pre-loading is expensive." The context window budget management in `src/QueryEngine.ts` enforces this "never-pre-load discipline" for session transcripts. This approach preserves the limited context window space for more immediately relevant information like the MEMORY.md index and on-demand topic files, while still allowing access to historical information when needed through search.
 
-Session transcripts represent Layer 3 of the three-layer memory architecture - the deepest layer that is accessed through search rather than being loaded into active memory.
+Session transcripts constitute Layer 3 of Claude Code's three-layer memory architecture, with the key principle being that they are accessed reactively through search rather than proactively loaded into context.
 
 **Grader reasoning:** All six required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
