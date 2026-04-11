@@ -21,22 +21,13 @@ Contains documents about how the agent is scored and what the benchmark requires
 Files: dab_overview.md, failure_taxonomy.md.
 
 ### kb/corrections/
-Contains the running structured log of agent failures. This is the self-learning loop. The agent reads the last 10 entries at session start. Drivers write entries after every observed failure. Intelligence Officers prune outdated entries when newer ones supersede them.
+`kb/corrections/log.md` is the self-learning loop. It is the running structured log of agent failures written by Drivers after every observed agent failure. The agent reads the last 10 entries at session start. Intelligence Officers prune outdated entries when newer ones supersede them.
 
 Files: log.md
 
 ## The Karpathy method — minimum content, maximum precision
 
-The discipline is removal, not accumulation. Every document must pass an injection test: paste it into a fresh LLM session with only that document as context, ask a question it should answer, and grade the result. Documents that fail the injection test are revised or removed — never kept.
-
-A KB that grows without being tested becomes noise that degrades the agent. The goal is that an agent that loads only the relevant KB documents should be able to answer the question correctly — not an agent that loads everything.
-
-Rules:
-1. Every document has a stated token budget. Do not exceed it.
-2. Remove everything the LLM already knows from pretraining. Only include what is specific to DAB, these databases, this agent.
-3. Every document has a CHANGELOG.md tracking what changed, when, and why.
-4. Every document has a corresponding injection test file in injection_tests/ documenting the test question, expected answer, and PASS/FAIL result.
-5. Documents that have not been injection-tested have not been validated and should not be loaded by the agent.
+The Karpathy discipline is removal, not accumulation. Every document must be minimal and precise. Every document must pass an injection test before committing — this is not optional. A document that has not been injection-tested must not be loaded by the agent under any circumstances. Standard documentation practice grows over time by adding more content. The Karpathy method does the opposite: it shrinks documents by removing what is not proven to work. The Karpathy method requires removing everything the LLM already knows from pretraining. Only include content specific to DAB, these databases, and this agent — nothing general. A KB that grows without being tested becomes noise that degrades the agent. The test for every sentence is: if the agent read only this sentence with no other context, could it take the correct action? If no — rewrite it or cut it.
 
 ## Injection test protocol
 
@@ -46,10 +37,10 @@ Step 2: Open a completely fresh LLM session (no other context, no system prompt)
 Step 3: Paste the document as the only content the LLM has seen.
 Step 4: Ask the test question written at the bottom of the document.
 Step 5: Grade: correct answer = PASS. Wrong or incomplete = FAIL.
-Step 6: Write result to kb/architecture/injection_tests/[document_name]_test.md
+Step 6: Write result to kb/architecture/injection_tests/[document_name]_test.md.
 ```
 
-If the document fails: either the content is wrong (fix it), the content is right but not written clearly enough (rewrite more precisely), or the document is trying to do too much (split it or cut irrelevant parts).
+A document without a test result in its test file has not been validated and must not be loaded by the agent.
 
 ## Why MEMORY.md has the smallest token budget
 
@@ -59,16 +50,16 @@ MEMORY.md is capped at ~200 tokens because it is a pointer, not a topic document
 
 | Document | Budget | Load when |
 |---|---|---|
-| MEMORY.md | ~200 tok | Always first |
-| tool_scoping.md | ~300 tok | Always second |
-| corrections/log.md | ~400 tok (last 10 entries) | Always third |
+| MEMORY.md | ~200 tok | Always first — mandatory |
+| tool_scoping.md | ~300 tok | Always second — mandatory |
+| corrections/log.md | ~400 tok (last 10 entries) | Always third — mandatory |
 | claude_code_memory.md | ~380 tok | On demand |
 | openai_agent_context.md | ~360 tok | On demand |
 | kb_v1_architecture.md | ~300 tok | On demand |
 | schemas.md (per dataset section) | ~400 tok | After question received |
 | business_terms.md | ~300 tok | If ambiguous language detected |
 
-Total mandatory pre-load: ~900 tokens. Total optional maximum: ~700 tokens.
+Total mandatory pre-load: ~900 tokens (MEMORY.md 200 + tool_scoping.md 300 + corrections/log.md 400). Total optional post-question maximum: ~700 tokens.
 
 ## What this does NOT cover
 The specific database tool assignments are in tool_scoping.md. Domain schemas and join keys are in kb/domain/. The agent failure corrections log is in kb/corrections/.
@@ -76,5 +67,5 @@ The specific database tool assignments are in tool_scoping.md. Domain schemas an
 ---
 Injection test: "What are the four KB subdirectories in the Oracle Forge project and what does each one contain?"
 Expected answer: kb/architecture/ contains documents about how the agent works (memory system, tool scoping, context loading). kb/domain/ contains documents about the data (schemas, join keys, business terms). kb/evaluation/ contains documents about scoring and the benchmark. kb/corrections/ contains the running log of agent failures and their fixes, read at every session start.
-Token count: ~310 tokens
+Token count: ~320 tokens
 Last verified: 2026-04-11

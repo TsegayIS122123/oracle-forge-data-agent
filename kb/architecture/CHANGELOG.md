@@ -19,7 +19,22 @@ INJECTION TEST: PASS. Question: "What are the four KB subdirectories and what do
 
 ADDED: CHANGELOG.md (this file).
 
-## Maintenance rules
+## 2026-04-11 — Injection test failure fixes (round 3)
+
+UPDATED: tool_scoping.md — "Do not return zero-row result to user" added as explicit standalone first line before numbered sequence. Duplicate cross-database steps removed from zero-rows section.
+INJECTION TEST: re-run required.
+
+UPDATED: openai_agent_context.md — Self-correction section now opens with "The agent evaluates its own intermediate results during execution — not only at the end." Core problem section restructured: DAB join key mismatch and domain-specific business terms now stated as explicit standalone sentences in their own paragraph.
+INJECTION TEST: re-run required.
+
+UPDATED: claude_code_memory.md — autoDream source paths moved to opening sentence. Layer 3 session transcripts restructured: QueryEngine.ts enforcement now in first sentence of section, not buried in source note.
+INJECTION TEST: re-run required.
+
+UPDATED: kb_v1_architecture.md — kb/corrections section now opens with "The file is kb/corrections/log.md" and "written by Drivers after every observed agent failure" in first line. Karpathy section rewritten: all three missing concepts (remove pretraining knowledge, DAB-specific only, sentence-level test) now appear in the first paragraph.
+INJECTION TEST: re-run required.
+
+UPDATED: MEMORY.md — tool_scoping.md registry entry now explicitly names all four engine types and includes the sentence "If a question asks why the agent uses separate database tools instead of one general tool, the answer is in tool_scoping.md."
+INJECTION TEST: re-run required.
 - Update this file every time a document is added, revised, or removed.
 - Record the test question and PASS/FAIL result for every change.
 - Documents removed must have their removal reason recorded here.

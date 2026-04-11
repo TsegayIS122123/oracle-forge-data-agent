@@ -6,43 +6,33 @@ This document describes the memory system extracted from the Claude Code source 
 ## The three memory layers
 
 ### Layer 1 — MEMORY.md index (~200 tokens, always loaded)
-MEMORY.md is a small index file — not a knowledge document itself. It lists every other KB document by name with a one-sentence description. The agent reads this file first at session start to know what knowledge is available, then uses it to decide what to load next. It is never more than ~200 tokens. Growing it beyond this defeats its purpose.
+MEMORY.md is a small index file — not a knowledge document itself. It lists every other KB document by name with a one-sentence description. The agent reads this file first at session start to know what knowledge is available, then uses it to decide what to load next. It is never more than ~200 tokens. Growing it beyond this defeats its purpose as an index.
 
-Source in codebase: `src/memdir/` handles the memory directory. The MEMORY.md file is the index of this directory. It functions like a table of contents — pointing to topic files, not containing content itself.
+Source in codebase: `src/memdir/` handles the memory directory. MEMORY.md is the index of this directory. It functions like a table of contents — pointing to topic files, not containing content itself.
 
 ### Layer 2 — Topic files (~300-400 tokens each, loaded on demand)
-Topic files contain the actual knowledge for a specific subject — tool scoping, schema details, business terms, join key glossaries. They are loaded only when the MEMORY.md index indicates they are relevant to the current question. A session that asks about PostgreSQL schemas loads the schema topic file. A session that asks about MongoDB aggregation loads tool_scoping.md. A session about stock data loads the stockmarket schema section. Never load all topic files upfront.
+Topic files contain the actual knowledge for a specific subject — tool scoping, schema details, business terms, join key glossaries. They are loaded only when the MEMORY.md index indicates they are relevant to the current question. Never load all topic files upfront.
 
 Source in codebase: `src/services/extractMemories/` auto-extracts memories from conversations and writes them back to topic files. `src/services/teamMemorySync/` synchronizes topic files across team members.
 
 ### Layer 3 — Session transcripts (searched, never pre-loaded)
-Session transcripts are logs of past agent runs — which queries were asked, what tools were called, what results came back, what the final answer was. They are never pre-loaded into context. The agent searches them when a new question closely resembles a past one (e.g., "This looks like the bookreview query 3 pattern — retrieve the transcript"). Searching is cheap; pre-loading is expensive.
-
-Source in codebase: `src/commands/resume` implements session restoration from transcript. The query pipeline in `src/QueryEngine.ts` (~46K lines) manages context window budgets that enforce this never-pre-load discipline.
+Session transcripts are logs of past agent runs — which queries were asked, what tools were called, what results came back, what the final answer was. They are never pre-loaded into context. The agent searches them only when a new question closely resembles a past one. Searching is cheap; pre-loading is expensive. Context window budget management in `src/QueryEngine.ts` (~46K lines) enforces the never-pre-load discipline for session transcripts — this is the specific file responsible for enforcing it.
 
 ## The autoDream consolidation pattern
 
-Source in codebase: `src/tasks/DreamTask/` and `src/services/autoDream/`.
-
-After a session ends, autoDream runs as a background process. It reviews what was learned during the session — corrections made, successful query patterns, new business term definitions discovered — and consolidates them back into the relevant topic files. Old, superseded information is removed. The topic file after consolidation is smaller and more precise than before the session. This is the mechanism that prevents the KB from growing into noise.
-
-Apply this pattern to the Oracle Forge KB: after every batch of agent runs, review the corrections log and consolidate verified fixes back into domain documents. Remove entries from the corrections log that have been absorbed into the main topic files.
+Source in codebase: `src/tasks/DreamTask/` and `src/services/autoDream/`. These are the two specific directories that implement autoDream. autoDream is a background process that runs after sessions end — not during sessions. It reviews what was learned during the session — corrections made, successful query patterns, new business term definitions discovered — and consolidates them back into the relevant topic files. Old, superseded information is removed. The topic file after consolidation is smaller and more precise than before the session. This is the mechanism that prevents the KB from growing into noise. For Oracle Forge, this means reviewing the corrections log after agent runs and absorbing verified fixes into domain documents — then removing those entries from the corrections log once they have been absorbed.
 
 ## Tool scoping philosophy (40+ tools, tight domain boundaries)
 
 Source in codebase: `src/tools/` contains ~40 tool implementations. `src/Tool.ts` (~29K lines) defines the base type with input schema (Zod validation), permission model, and execution logic.
 
-Claude Code's tool scoping principle: every tool has a single, tight responsibility with a named domain boundary. A tool that does one thing precisely is more reliable than a tool that tries to do three things loosely. The agent knows exactly which tool failed and why — because each tool does exactly one thing. This is directly why the Oracle Forge agent uses separate tools per database type rather than a single "query database" tool that switches internally.
-
-The permission model per tool (not per session): each tool declares what user approvals it requires, what it is safe to do without approval, and whether it is concurrency-safe. The Oracle Forge DAB tools are all read-only — `checkPermissions()` auto-approves all database queries.
+Claude Code's tool scoping principle: each tool has a single tight responsibility. That is the rule — one tool, one responsibility, a named domain boundary. A tool that does one thing precisely is more reliable than a tool that tries to do three things loosely. When a tool fails, the agent knows exactly which tool failed and why. Tight domain boundaries make failures diagnosable — the agent knows exactly which tool failed. Tight domain boundaries make failures recoverable — the agent knows exactly what to fix. This is directly why the Oracle Forge agent uses separate tools per database type rather than a single "query database" tool that switches internally.
 
 ## Worktree sub-agent spawn modes
 
 Source in codebase: `src/tools/EnterWorktreeTool.ts`, `src/tools/ExitWorktreeTool.ts`, `src/coordinator/`.
 
-Claude Code spawns sub-agents into isolated git worktrees for parallel experiments. Each worktree is an isolated copy of the repository state — experiments in one worktree cannot interfere with another. The Coordinator (`src/coordinator/coordinatorMode.ts`) orchestrates which sub-agents run in which worktrees and merges their outputs.
-
-For the Oracle Forge agent: the evaluation harness uses this pattern — multiple trial runs of the same query run in isolation and their results are aggregated by the harness, not interfered with by each other.
+Claude Code spawns sub-agents into isolated git worktrees for parallel experiments. Each worktree is an isolated copy of the repository state. The Coordinator (`src/coordinator/coordinatorMode.ts`) orchestrates which sub-agents run in which worktrees and merges their outputs. For the Oracle Forge agent, multiple trial runs of the same query run in isolation and their results are aggregated by the harness.
 
 ## What this does NOT cover
 The OpenAI six-layer context design is in openai_agent_context.md. The Oracle Forge KB structure rules are in kb_v1_architecture.md. Database tool routing specifics are in tool_scoping.md.
