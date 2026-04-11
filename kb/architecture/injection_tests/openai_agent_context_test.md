@@ -4,159 +4,272 @@
 `kb/architecture/openai_agent_context.md`
 
 ## Why this test is critical
-This document contains the conceptual architecture that justifies the Oracle Forge agent's three mandatory context layers. If the agent cannot correctly explain the six layers and map them to Oracle Forge equivalents from this document alone, it does not understand why its own architecture exists. This causes incorrect decisions under failure: the agent may skip loading the corrections log, fail to detect domain term ambiguity, or not perform runtime schema inspection when needed.
+This document contains the six-layer architecture that justifies the Oracle Forge agent's mandatory context layers. If the agent cannot map each layer to its Oracle Forge equivalent from this document alone, it will skip loading critical layers under failure conditions.
+
+---
 
 ## Test questions
 
 ### Question 1
-"What is Layer 5 in OpenAI's six-layer context architecture, what problem does it solve, and what is the Oracle Forge equivalent?"
+"What is Layer 5 in OpenAI's six-layer context architecture, what problem does it solve, what was the measured performance impact, and what is the Oracle Forge equivalent?"
 
-Expected answer:
-Layer 5 is the learning memory. It stores corrections and nuances discovered in previous conversations and applies them automatically to future requests. It solves the problem of repeated failures — the agent makes the same mistake in every session unless past corrections are surfaced. OpenAI measured this layer's impact directly: a query that took 22 minutes without memory dropped to 1 minute 22 seconds with memory enabled. The Oracle Forge equivalent is `kb/corrections/log.md` — the running structured log of `[query that failed] → [what was wrong] → [correct approach]`, with the last 10 entries loaded at every session start.
+Required concepts:
+- Layer 5 is the learning memory
+- It stores corrections and nuances from previous conversations
+- It applies those corrections automatically to future requests
+- It solves the problem of repeated failures across sessions
+- Without memory a specific query took over 22 minutes
+- With memory enabled that same query dropped to 1 minute and 22 seconds
+- The Oracle Forge equivalent is kb/corrections/log.md
+- The corrections log format is query that failed then what was wrong then correct approach
+- The agent reads the last 10 entries at every session start
+
+Forbidden contradictions:
+- Stating Layer 5 is Codex Enrichment
+- Stating the Oracle Forge equivalent is kb/domain/schemas.md
+- Stating memory had no measurable performance impact
+
+---
 
 ### Question 2
-"What is Codex Enrichment and what does it reveal that basic schema metadata does not?"
+"What is Codex Enrichment, which layer number is it, and what does it reveal that basic schema metadata cannot?"
 
-Expected answer:
-Codex Enrichment is OpenAI's Layer 3. It is a daily asynchronous process where Codex crawls the codebase that generates each data table and derives a deeper definition from the pipeline code itself. Pipeline logic captures upstream and downstream dependencies, ownership, granularity, join keys, filtering assumptions, and freshness guarantees — none of which appear in SQL schema metadata or column names. Example: the code may reveal that a table filters to only US users before aggregating, which is invisible in the schema. This matters because many tables look identical in their schema but differ critically in what data they actually contain.
+Required concepts:
+- Codex Enrichment is Layer 3
+- It is a daily asynchronous process
+- Codex crawls the codebase that generates each data table
+- It derives each table's meaning from the pipeline code itself
+- Pipeline logic captures upstream and downstream dependencies
+- Pipeline logic captures ownership granularity and join keys
+- Pipeline logic captures filtering assumptions that never appear in schema metadata
+- Example: code may reveal a table filters to only US users before aggregating invisible in the schema
+- Many tables look identical in schema but differ critically in actual data content
+
+Forbidden contradictions:
+- Stating Codex Enrichment is Layer 1 or Layer 2
+- Stating schema metadata alone reveals filtering assumptions
+- Stating Codex Enrichment is a real-time process not a daily one
+
+---
 
 ### Question 3
 "What is the closed-loop self-correction pattern and how does it differ from standard error handling?"
 
-Expected answer:
-The closed-loop self-correction pattern means the agent evaluates its own intermediate results during execution — not just at the end. If a result looks wrong (zero rows from an expected join, a count that seems implausible, a metric that contradicts a known baseline), the agent investigates the cause, adjusts its approach, and retries. It does not return the suspicious result to the user. It carries the correction forward as a log entry so the same mistake does not recur in future sessions. This is not error handling — error handling reacts to exceptions. Self-correction is the agent evaluating the quality of its own reasoning mid-execution, even when no exception is raised.
+Required concepts:
+- The agent evaluates its own intermediate results during execution not only at the end
+- If a result looks wrong such as zero rows from an expected join the agent investigates
+- The agent adjusts its approach and retries without returning the suspicious result to the user
+- The agent carries the correction forward as a log entry so the same mistake does not recur
+- Standard error handling reacts to exceptions raised by the system
+- Self-correction evaluates quality of reasoning even when no exception is raised
+- A wrong answer that looks correct will not trigger an exception but self-correction catches it
+
+Forbidden contradictions:
+- Stating self-correction and error handling are the same thing
+- Stating the agent returns zero-row results and lets the user investigate
+
+---
 
 ### Question 4
-"Why does the core problem in OpenAI's data agent architecture exist, and how does it apply to the DataAgentBench challenge?"
+"What is the core problem OpenAI's data agent architecture exists to solve and how does this apply to the DataAgentBench challenge?"
 
-Expected answer:
-The core problem is that finding the right table is the hardest sub-problem — not query generation. Many tables look similar on the surface but differ critically: one table includes only logged-in users while another includes everyone; one captures only first-party traffic while another captures everything. Without layered context, the agent picks the wrong table and produces a wrong answer that looks correct — no error, just wrong numbers. This applies directly to DataAgentBench: multiple databases in each dataset contain similarly-named tables with different semantics, inconsistently-formatted join keys, and domain-specific business terms that are not derivable from the schema. The six-layer architecture exists specifically to give the agent the context to distinguish these cases.
+Required concepts:
+- The core problem is that finding the right table is the hardest sub-problem not query generation
+- Many tables look similar on the surface but differ critically in data content
+- One table might include only logged-in users while another includes everyone
+- Without layered context the agent picks the wrong table and produces a wrong answer that looks correct
+- DataAgentBench contains multiple databases with similarly-named tables with different semantics
+- DAB has inconsistently-formatted join keys across database systems
+- DAB has domain-specific business terms not derivable from the schema
+- The six-layer architecture exists to give the agent context to distinguish these cases
+
+Forbidden contradictions:
+- Stating query generation syntax is the hardest sub-problem
+- Stating wrong table selection always produces an obvious error
+
+---
 
 ### Question 5
-"What are the three engineering lessons OpenAI learned during development of their data agent?"
+"What are the three engineering lessons OpenAI documented from building their data agent?"
 
-Expected answer:
-First: tool consolidation matters — overlapping tools with redundant functionality confuse the agent. Restrict to one tool per database type with tight domain boundaries. Second: less prescriptive prompting works better — rigid step-by-step instructions pushed the agent down wrong paths when the situation did not match the script. Higher-level guidance combined with model reasoning produces more robust results. Third: code reveals what metadata hides — pipeline logic contains assumptions (filtering, aggregation logic, business intent) that never surface in table schemas. Crawling the codebase that generates tables provides more useful context than reading the tables themselves.
+Required concepts:
+- Tool consolidation matters and overlapping tools with redundant functionality confuse the agent
+- Restrict to one tool per database type with tight domain boundaries
+- Less prescriptive prompting works better than rigid step-by-step instructions
+- Rigid instructions pushed the agent down wrong paths when situation did not match the script
+- Higher-level guidance combined with model reasoning produces more robust results
+- Code reveals what metadata hides because pipeline logic contains filtering assumptions invisible in schemas
+- Crawling the codebase that generates tables provides more useful context than reading table schemas
+
+Forbidden contradictions:
+- Stating more tools with overlapping functions improve reliability
+- Stating rigid step-by-step prompting outperforms higher-level guidance
 
 ---
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 09:18 UTC
+**Run timestamp:** 2026-04-11 12:05 UTC
 **Model used:** anthropic/claude-sonnet-4
 **Document tested:** kb/architecture/openai_agent_context.md
 **Overall result:** PASS
-**Average score:** 95.0/100
+**Average score:** 100.0/100
 
-### Question 1 — PASS (95/100)
+### Question 1 — PASS (100/100)
 
-**Question:** What is Layer 5 in OpenAI's six-layer context architecture, what problem does it solve, and what is the Oracle Forge equivalent?
+**Question:** What is Layer 5 in OpenAI's six-layer context architecture, what problem does it solve, what was the measured performance impact, and what is the Oracle Forge equivalent?
 
-**Expected answer (summary):**
-Layer 5 is the learning memory. It stores corrections and nuances discovered in previous conversations and applies them automatically to future requests. It solves the problem of repeated failures — the agent makes the same mistake in every session unless past corrections are surfaced. OpenAI measured this layer's impact directly: a query that took 22 minutes without memory dropped to 1 minute 22 seconds with memory enabled. The Oracle Forge equivalent is `kb/corrections/log.md` — the running structured log of `[query that failed] → [what was wrong] → [correct approach]`, with the last 10 entries loaded at every session start.
+**Concepts found (9/9):**
+  - [x] Layer 5 is the learning memory
+  - [x] It stores corrections and nuances from previous conversations
+  - [x] It applies those corrections automatically to future requests
+  - [x] It solves the problem of repeated failures across sessions
+  - [x] Without memory a specific query took over 22 minutes
+  - [x] With memory enabled that same query dropped to 1 minute and 22 seconds
+  - [x] The Oracle Forge equivalent is kb/corrections/log.md
+  - [x] The corrections log format is query that failed then what was wrong then correct approach
+  - [x] The agent reads the last 10 entries at every session start
 
-**Actual answer from LLM:**
+**Actual answer:**
 Based on the document, Layer 5 in OpenAI's six-layer context architecture is **Learning memory (self-correction loop)**.
 
-**What it does:** The agent stores corrections and nuances discovered in previous conversations and applies them to future requests. For example, it might learn that "The join between the customer table and the transaction table requires zero-padding the customer ID to 5 digits" and store this as a correction to apply in future sessions.
+**What it does:** The agent stores corrections and nuances discovered in previous conversations and applies them automatically to future requests. For example: "The join between the customer table and the transaction table requires zero-padding the customer ID to 5 digits."
 
-**Problem it solves:** It reduces repeated failures from the same mistake by carrying forward institutional knowledge gained through experience. According to OpenAI's measurements, a query that took 22 minutes without memory dropped to 1 minute 22 seconds with memory enabled. The document states that "Memory is non-negotiable."
+**Problem it solves:** It reduces repeated failures from the same mistake by learning from past errors and corrections.
 
-**Oracle Forge equivalent:** The equivalent is `kb/corrections/log.md` — a running structured log with the format `[query that failed] → [what was wrong] → [correct approach]`. The agent reads the last 10 entries at the start of every session to avoid repeating previous mistakes.
+**Measured performance impact:** According to OpenAI's measurements, a query that took 22 minutes without memory dropped to 1 minute 22 seconds with memory enabled. The document states that "Memory is non-negotiable."
 
-**Grader reasoning:** The actual answer contains all key concepts from the expected answer with accurate details and clear structure, only losing minor points for slightly more verbose presentation.
+**Oracle Forge equivalent:** The equivalent is `kb/corrections/log.md` — a running structured log of `[query that failed] → [what was wrong] → [correct approach]`. The agent reads the last 10 entries at every session start (not all entries, only the last 10).
 
----
-
-### Question 2 — PASS (95/100)
-
-**Question:** What is Codex Enrichment and what does it reveal that basic schema metadata does not?
-
-**Expected answer (summary):**
-Codex Enrichment is OpenAI's Layer 3. It is a daily asynchronous process where Codex crawls the codebase that generates each data table and derives a deeper definition from the pipeline code itself. Pipeline logic captures upstream and downstream dependencies, ownership, granularity, join keys, filtering assumptions, and freshness guarantees — none of which appear in SQL schema metadata or column names. Example: the code may reveal that a table filters to only US users before aggregating, which is invisible in the schema. This matters because many tables look identical in their schema but differ critically in what data they actually contain.
-
-**Actual answer from LLM:**
-Based on the document, Codex Enrichment is Layer 3 of OpenAI's six-layer context architecture. 
-
-**What it is:** OpenAI crawls their codebase daily using Codex to derive each table's meaning from the pipeline code that generates it.
-
-**What it reveals that basic schema metadata does not:** Pipeline logic captures assumptions, freshness guarantees, and business intent that never appear in SQL or metadata. The document gives a specific example: the code reveals that a table filters to only US users before aggregating — a fact that is invisible in the schema.
-
-The document emphasizes this principle in the engineering lessons: "Code reveals what metadata hides: pipeline logic contains assumptions that never surface in table schemas. Reading the code that generates a table tells you more than reading the table's schema."
-
-In the Oracle Forge context, this corresponds to reading the DAB query patterns and understanding what the queries assume about the data.
-
-**Grader reasoning:** The actual answer captures all key concepts including Codex Enrichment as Layer 3, daily crawling process, pipeline logic revealing hidden assumptions like US-only filtering, and the core principle that code reveals what metadata hides, with only minor omissions of some technical details.
+**Grader reasoning:** All nine required concepts are clearly present and no forbidden contradictions were found.
 
 ---
 
-### Question 3 — PASS (95/100)
+### Question 2 — PASS (100/100)
+
+**Question:** What is Codex Enrichment, which layer number is it, and what does it reveal that basic schema metadata cannot?
+
+**Concepts found (9/9):**
+  - [x] Codex Enrichment is Layer 3
+  - [x] It is a daily asynchronous process
+  - [x] Codex crawls the codebase that generates each data table
+  - [x] It derives each table's meaning from the pipeline code itself
+  - [x] Pipeline logic captures upstream and downstream dependencies
+  - [x] Pipeline logic captures ownership granularity and join keys
+  - [x] Pipeline logic captures filtering assumptions that never appear in schema metadata
+  - [x] Example: code may reveal a table filters to only US users before aggregating invisible in the schema
+  - [x] Many tables look identical in schema but differ critically in actual data content
+
+**Actual answer:**
+Based on the document, Codex Enrichment is Layer 3 of OpenAI's six-layer context architecture.
+
+Codex Enrichment is a daily asynchronous process (not real-time) that OpenAI runs overnight as a background job. Codex crawls the codebase that generates each data table and derives a deeper definition from the pipeline code itself.
+
+What Codex Enrichment reveals that basic schema metadata cannot:
+
+1. **Upstream and downstream dependencies** - facts that never appear in SQL schema metadata or column names
+2. **Ownership and granularity information**
+3. **Join keys** - not visible in basic schemas
+4. **Filtering assumptions and freshness guarantees** that are invisible in schemas
+5. **Pipeline logic** that captures critical data transformations
+
+The document provides a specific example: the code reveals that a table filters to only US users before aggregating — a fact that would be invisible in the schema alone. 
+
+The key insight is that "many tables look identical in their schema but differ critically in actual data content." Reading the table schema only tells you column names, but reading the code that generates the table tells you what was filtered, transformed, and assumed. This is why "crawling the codebase that generates tables provides more useful context than reading the tables themselves."
+
+**Grader reasoning:** All nine required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+
+---
+
+### Question 3 — PASS (100/100)
 
 **Question:** What is the closed-loop self-correction pattern and how does it differ from standard error handling?
 
-**Expected answer (summary):**
-The closed-loop self-correction pattern means the agent evaluates its own intermediate results during execution — not just at the end. If a result looks wrong (zero rows from an expected join, a count that seems implausible, a metric that contradicts a known baseline), the agent investigates the cause, adjusts its approach, and retries. It does not return the suspicious result to the user. It carries the correction forward as a log entry so the same mistake does not recur in future sessions. This is not error handling — error handling reacts to exceptions. Self-correction is the agent evaluating the quality of its own reasoning mid-execution, even when no exception is raised.
+**Concepts found (7/7):**
+  - [x] The agent evaluates its own intermediate results during execution not only at the end
+  - [x] If a result looks wrong such as zero rows from an expected join the agent investigates
+  - [x] The agent adjusts its approach and retries without returning the suspicious result to the user
+  - [x] The agent carries the correction forward as a log entry so the same mistake does not recur
+  - [x] Standard error handling reacts to exceptions raised by the system
+  - [x] Self-correction evaluates quality of reasoning even when no exception is raised
+  - [x] A wrong answer that looks correct will not trigger an exception but self-correction catches it
 
-**Actual answer from LLM:**
-Based on the document, the closed-loop self-correction pattern is when the agent evaluates its own reasoning mid-execution rather than simply handling errors. Here's how it works:
+**Actual answer:**
+According to the document, the closed-loop self-correction pattern is when the agent evaluates its own intermediate results during execution — not only at the end. This evaluation happens mid-execution after every tool call that returns data.
 
-**What it is:**
-If an intermediate result looks wrong (zero rows from an expected join, a count that seems too high, a metric that contradicts a known baseline), the agent does not return the result. Instead, it investigates by checking the join keys, filter conditions, and whether the correct table was selected. Then it adjusts its approach and retries, carrying the finding forward as a correction log entry so the same mistake doesn't recur.
+If an intermediate result looks wrong — such as zero rows from an expected join, a count that seems too high, or a metric that contradicts a known baseline — the agent does not return the result. Instead, it investigates by checking the join keys, filter conditions, and whether the correct table was selected. Then it adjusts its approach and retries. It carries the finding forward as a correction log entry so the same mistake does not recur.
 
-**How it differs from standard error handling:**
-The document explicitly states: "This is not error handling. It is the agent evaluating its own reasoning mid-execution." 
+The key difference from standard error handling is:
 
-Standard error handling typically responds to system errors or exceptions after they occur. In contrast, the closed-loop self-correction pattern involves the agent proactively detecting when results don't make logical sense and investigating the reasoning process itself before concluding the task.
+**Error handling** reacts to exceptions raised by the system.
 
-**Oracle Forge implementation:**
-The Oracle Forge agent implements this in `self_corrector.py`, which detects execution failure, diagnoses which of four failure categories applies (wrong tool, wrong join key, unstructured text not extracted, domain term misunderstood), then retries with the correct approach.
+**Self-correction** evaluates the quality of the agent's own reasoning even when no exception is raised. A wrong answer that looks correct will not trigger any system exception, but self-correction catches it by checking whether the result is plausible.
 
-**Grader reasoning:** The actual answer captures all key concepts from the expected answer including mid-execution evaluation, investigation and retry process, correction logging, and the clear distinction from standard error handling, plus adds relevant implementation details.
+The document notes that in the Oracle Forge agent, this is implemented in `self_corrector.py`.
+
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
 ---
 
-### Question 4 — PASS (95/100)
+### Question 4 — PASS (100/100)
 
-**Question:** Why does the core problem in OpenAI's data agent architecture exist, and how does it apply to the DataAgentBench challenge?
+**Question:** What is the core problem OpenAI's data agent architecture exists to solve and how does this apply to the DataAgentBench challenge?
 
-**Expected answer (summary):**
-The core problem is that finding the right table is the hardest sub-problem — not query generation. Many tables look similar on the surface but differ critically: one table includes only logged-in users while another includes everyone; one captures only first-party traffic while another captures everything. Without layered context, the agent picks the wrong table and produces a wrong answer that looks correct — no error, just wrong numbers. This applies directly to DataAgentBench: multiple databases in each dataset contain similarly-named tables with different semantics, inconsistently-formatted join keys, and domain-specific business terms that are not derivable from the schema. The six-layer architecture exists specifically to give the agent the context to distinguish these cases.
+**Concepts found (8/8):**
+  - [x] The core problem is that finding the right table is the hardest sub-problem not query generation
+  - [x] Many tables look similar on the surface but differ critically in data content
+  - [x] One table might include only logged-in users while another includes everyone
+  - [x] Without layered context the agent picks the wrong table and produces a wrong answer that looks correct
+  - [x] DataAgentBench contains multiple databases with similarly-named tables with different semantics
+  - [x] DAB has inconsistently-formatted join keys across database systems
+  - [x] DAB has domain-specific business terms not derivable from the schema
+  - [x] The six-layer architecture exists to give the agent context to distinguish these cases
 
-**Actual answer from LLM:**
-According to the document, the core problem exists because **finding the right table across 70,000 datasets and 600 petabytes is the hardest sub-problem — not query generation**. 
+**Actual answer:**
+According to the document, the core problem OpenAI's data agent architecture exists to solve is that **finding the right table is the hardest sub-problem — not query generation**. 
 
-The specific issue is that many tables look similar on the surface but have critical differences in their semantics:
+The specific issue is that many tables look similar on the surface but differ critically in important ways:
 - One table includes only logged-in users, another includes everyone
 - One captures only first-party traffic, another captures everything
 
-Without layered context, the agent picks the wrong table and produces a wrong answer that looks correct.
+Without layered context, the agent picks the wrong table and produces a wrong answer that looks correct. Crucially, no SQL error fires — the answer simply uses the wrong data.
 
-**How it applies to the DataAgentBench (DAB) challenge:**
+This applies directly to the DataAgentBench (DAB) challenge in three key ways:
 
-The document states this is "the same problem the Oracle Forge agent faces on DAB: multiple databases, similar-looking schemas, different semantics." 
+1. **Similar table semantics**: DAB has multiple databases with similarly-named tables that have different semantics
 
-In the DAB context, the challenge is navigating multiple databases where tables may appear similar in their schema structure but contain fundamentally different data or have different business meanings. The agent needs the six-layer context architecture to distinguish between these seemingly similar but semantically different tables to avoid producing incorrect results that appear plausible on the surface.
+2. **Inconsistent data formats**: DAB has inconsistently-formatted join keys across database systems — for example, a customer ID is an integer in PostgreSQL but a "CUST-00123" string in MongoDB
 
-**Grader reasoning:** The actual answer captures all key concepts from the expected answer including the core problem of table selection, specific examples of table differences, the issue of wrong but plausible-looking results, and how this applies to DataAgentBench with multiple databases and similar schemas having different semantics.
+3. **Hidden business logic**: DAB has domain-specific business terms that are not derivable from the schema alone — such as "active customer" meaning purchased in the last 90 days, not just row existence
+
+The six-layer architecture exists specifically to give the agent the context needed to distinguish these three categories of problems before answering, ensuring it selects the correct tables and applies the right business logic rather than producing plausible-looking but incorrect results.
+
+**Grader reasoning:** All eight required concepts are clearly present in the actual answer with no forbidden contradictions.
 
 ---
 
-### Question 5 — PASS (95/100)
+### Question 5 — PASS (100/100)
 
-**Question:** What are the three engineering lessons OpenAI learned during development of their data agent?
+**Question:** What are the three engineering lessons OpenAI documented from building their data agent?
 
-**Expected answer (summary):**
-First: tool consolidation matters — overlapping tools with redundant functionality confuse the agent. Restrict to one tool per database type with tight domain boundaries. Second: less prescriptive prompting works better — rigid step-by-step instructions pushed the agent down wrong paths when the situation did not match the script. Higher-level guidance combined with model reasoning produces more robust results. Third: code reveals what metadata hides — pipeline logic contains assumptions (filtering, aggregation logic, business intent) that never surface in table schemas. Crawling the codebase that generates tables provides more useful context than reading the tables themselves.
+**Concepts found (7/7):**
+  - [x] Tool consolidation matters and overlapping tools with redundant functionality confuse the agent
+  - [x] Restrict to one tool per database type with tight domain boundaries
+  - [x] Less prescriptive prompting works better than rigid step-by-step instructions
+  - [x] Rigid instructions pushed the agent down wrong paths when situation did not match the script
+  - [x] Higher-level guidance combined with model reasoning produces more robust results
+  - [x] Code reveals what metadata hides because pipeline logic contains filtering assumptions invisible in schemas
+  - [x] Crawling the codebase that generates tables provides more useful context than reading table schemas
 
-**Actual answer from LLM:**
-Based on the document, OpenAI learned three key engineering lessons during development of their data agent:
+**Actual answer:**
+Based on the document, OpenAI documented three key engineering lessons from building their data agent:
 
-1. **Tool consolidation matters**: Overlapping tools confuse the agent. They learned to restrict to one tool per database type with tight domain boundaries — following the same principle as Claude Code's tool scoping philosophy.
+1. **Tool consolidation matters**: Overlapping tools confuse the agent. The solution is to restrict to one tool per database type with tight domain boundaries — following the same principle as Claude Code's tool scoping philosophy.
 
 2. **Less prescriptive prompting**: Rigid step-by-step instructions pushed the agent down wrong paths when the situation didn't match the script. Higher-level guidance plus model reasoning produces more robust results.
 
-3. **Code reveals what metadata hides**: Pipeline logic contains assumptions that never surface in table schemas. Reading the code that generates a table tells you more than reading the table's schema itself.
+3. **Code reveals what metadata hides**: Pipeline logic contains assumptions that never surface in table schemas. Crawling the codebase that generates tables provides more useful context than reading the tables themselves — reading the table schema tells you column names; reading the code that generates the table tells you what was filtered, transformed, and assumed.
 
-**Grader reasoning:** The actual answer captures all three key engineering lessons with accurate content and only minor acceptable wording differences, though it adds an unnecessary reference to Claude Code.
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer with no forbidden contradictions detected.
 
 ---

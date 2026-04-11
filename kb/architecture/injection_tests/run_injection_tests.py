@@ -1,13 +1,18 @@
 """
 Oracle Forge — KB Architecture Injection Test Runner
 =====================================================
-Runs injection tests for all kb/architecture/ documents using OpenRouter.
-Results are written back into the corresponding test .md files.
+Production-grade injection test runner using structured rubric grading.
+Every expected answer is a checklist of required concepts.
+Score = (concepts present / total concepts) * 100.
+100/100 requires every required concept present and nothing contradicted.
 
 Usage:
-    python3 run_injection_tests.py                     # run all tests
-    python3 run_injection_tests.py --doc tool_scoping  # run one document
+    python3 run_injection_tests.py                      # run all tests
+    python3 run_injection_tests.py --doc tool_scoping   # run one document
+    python3 run_injection_tests.py --doc MEMORY
     python3 run_injection_tests.py --doc claude_code_memory
+    python3 run_injection_tests.py --doc openai_agent_context
+    python3 run_injection_tests.py --doc kb_v1_architecture
 
 Requirements:
     pip3 install openai python-dotenv
@@ -22,18 +27,21 @@ import re
 import json
 import argparse
 from pathlib import Path
-from datetime import UTC, datetime
+from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 
 # ── paths ──────────────────────────────────────────────────────────────────
-SCRIPT_DIR   = Path(__file__).parent.resolve()
-KB_ARCH_DIR  = SCRIPT_DIR.parent          # kb/architecture/
-REPO_ROOT    = KB_ARCH_DIR.parent.parent  # project root
-ENV_FILE     = REPO_ROOT / "DataAgentBench" / ".env"
-REPO_ENV     = REPO_ROOT / ".env"
+SCRIPT_DIR = Path(__file__).parent.resolve()
+KB_ARCH_DIR = SCRIPT_DIR.parent
+REPO_ROOT = KB_ARCH_DIR.parent.parent
 
-for candidate in [ENV_FILE, REPO_ENV, Path("/DataAgentBench/.env"), Path(".env")]:
+for candidate in [
+    REPO_ROOT / ".env",
+    REPO_ROOT / "DataAgentBench" / ".env",
+    Path("/DataAgentBench/.env"),
+    Path(".env"),
+]:
     if candidate.exists():
         load_dotenv(candidate)
         break
@@ -43,8 +51,7 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not API_KEY:
     sys.exit(
         "ERROR: OPENROUTER_API_KEY not set.\n"
-        "Add it to your .env file or export it:\n"
-        "  export OPENROUTER_API_KEY=sk-or-v1-..."
+        "Add it to your .env file:\n  OPENROUTER_API_KEY=sk-or-v1-..."
     )
 
 client = OpenAI(
@@ -59,38 +66,36 @@ client = OpenAI(
 MODEL = os.getenv("INJECTION_TEST_MODEL", "anthropic/claude-3.7-sonnet")
 
 # ── document registry ───────────────────────────────────────────────────────
-# Maps --doc argument → (kb document file, test file)
 DOCUMENTS = {
     "MEMORY": {
-        "doc_file": KB_ARCH_DIR / "MEMORY.md",
+        "doc_file":  KB_ARCH_DIR / "MEMORY.md",
         "test_file": SCRIPT_DIR / "MEMORY_test.md",
-        "priority": 1,  # tested first — most critical, loaded every session
+        "priority":  1,
     },
     "tool_scoping": {
-        "doc_file": KB_ARCH_DIR / "tool_scoping.md",
+        "doc_file":  KB_ARCH_DIR / "tool_scoping.md",
         "test_file": SCRIPT_DIR / "tool_scoping_test.md",
-        "priority": 2,  # mandatory, loaded before every question
+        "priority":  2,
     },
     "claude_code_memory": {
-        "doc_file": KB_ARCH_DIR / "claude_code_memory.md",
+        "doc_file":  KB_ARCH_DIR / "claude_code_memory.md",
         "test_file": SCRIPT_DIR / "claude_code_memory_test.md",
-        "priority": 3,
+        "priority":  3,
     },
     "openai_agent_context": {
-        "doc_file": KB_ARCH_DIR / "openai_agent_context.md",
+        "doc_file":  KB_ARCH_DIR / "openai_agent_context.md",
         "test_file": SCRIPT_DIR / "openai_agent_context_test.md",
-        "priority": 4,
+        "priority":  4,
     },
     "kb_v1_architecture": {
-        "doc_file": KB_ARCH_DIR / "kb_v1_architecture.md",
+        "doc_file":  KB_ARCH_DIR / "kb_v1_architecture.md",
         "test_file": SCRIPT_DIR / "kb_v1_architecture_test.md",
-        "priority": 5,
+        "priority":  5,
     },
 }
 
 
 def load_document(path: Path) -> str:
-    """Read a KB document. Abort clearly if it does not exist."""
     if not path.exists():
         sys.exit(f"ERROR: Document not found: {path}")
     return path.read_text(encoding="utf-8").strip()
@@ -98,42 +103,65 @@ def load_document(path: Path) -> str:
 
 def extract_qa_pairs(test_content: str) -> list[dict]:
     """
-    Parse test file to extract question/expected-answer pairs.
-    Looks for blocks:
-        ### Question N
-        "<question text>"
+    Parse structured Q&A blocks from test file.
+    Each block must follow this format:
 
-        Expected answer:
-        <answer text>
+        ### Question N
+        "question text"
+
+        Required concepts:
+        - concept one
+        - concept two
+
+        Forbidden contradictions:
+        - contradiction one
     """
     pairs = []
     blocks = re.split(r"### Question \d+", test_content)
-    for block in blocks[1:]:  # skip preamble before first question
+    for block in blocks[1:]:
         q_match = re.search(r'"(.+?)"', block, re.DOTALL)
-        a_match = re.search(r"Expected answer:\s*\n(.+?)(?=\n###|\n---|\Z)", block, re.DOTALL)
-        if q_match and a_match:
-            pairs.append({
-                "question": q_match.group(1).strip(),
-                "expected": a_match.group(1).strip(),
-            })
+        concepts_match = re.search(
+            r"Required concepts:\s*\n((?:\s*-[^\n]+\n?)+)", block
+        )
+        forbidden_match = re.search(
+            r"Forbidden contradictions:\s*\n((?:\s*-[^\n]+\n?)+)", block
+        )
+        if not q_match or not concepts_match:
+            continue
+
+        concepts = [
+            c.strip().lstrip("- ").strip()
+            for c in concepts_match.group(1).strip().splitlines()
+            if c.strip().startswith("-")
+        ]
+        forbidden = []
+        if forbidden_match:
+            forbidden = [
+                c.strip().lstrip("- ").strip()
+                for c in forbidden_match.group(1).strip().splitlines()
+                if c.strip().startswith("-")
+            ]
+
+        pairs.append({
+            "question":  q_match.group(1).strip(),
+            "concepts":  concepts,
+            "forbidden": forbidden,
+        })
     return pairs
 
 
 def call_openrouter(document_text: str, question: str) -> str:
-    """
-    Send a single injection test call to OpenRouter.
-    The document is the ONLY context — no system prompt, no other knowledge.
-    """
+    """Injection test call — document is the ONLY context."""
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=600,
+        max_tokens=800,
         messages=[
             {
                 "role": "user",
                 "content": (
-                    f"The following is the only document you have access to. "
-                    f"Answer the question using only the information in this document. "
-                    f"Do not use any other knowledge.\n\n"
+                    "The following is the ONLY document you have access to. "
+                    "Answer the question using ONLY the information in this document. "
+                    "Do not use any external knowledge or assumptions.\n\n"
                     f"DOCUMENT:\n{document_text}\n\n"
                     f"QUESTION:\n{question}"
                 ),
@@ -143,52 +171,100 @@ def call_openrouter(document_text: str, question: str) -> str:
     return response.choices[0].message.content.strip()
 
 
-def grade_answer(question: str, expected: str, actual: str) -> dict:
+def grade_with_rubric(question: str, actual: str,
+                      concepts: list[str], forbidden: list[str]) -> dict:
     """
-    Use OpenRouter to grade whether the actual answer matches the expected answer.
-    Returns {"pass": bool, "score": 0-100, "reasoning": str}
+    Structured rubric grader.
+    Score = concepts_present / total_concepts * 100
+    Any forbidden contradiction immediately caps score at 50.
+
+    Returns:
+        {
+          "score": int 0-100,
+          "concepts_found": [str],
+          "concepts_missing": [str],
+          "contradictions_found": [str],
+          "reasoning": str
+        }
     """
-    grader_prompt = (
-        f"You are a strict grader for an AI agent knowledge base injection test.\n\n"
-        f"QUESTION: {question}\n\n"
-        f"EXPECTED ANSWER:\n{expected}\n\n"
-        f"ACTUAL ANSWER:\n{actual}\n\n"
-        f"Grade the actual answer. It PASSES if it contains the key concepts from the expected answer "
-        f"without contradicting them. Minor wording differences are acceptable. "
-        f"Missing key concepts is a FAIL. Wrong information is a FAIL.\n\n"
-        f"Respond with JSON only, no other text:\n"
-        f'{{"pass": true/false, "score": 0-100, "reasoning": "one sentence"}}'
-    )
+    concepts_json = json.dumps(concepts)
+    forbidden_json = json.dumps(forbidden)
+
+    grader_prompt = f"""You are a strict technical grader for a knowledge base injection test.
+
+QUESTION ASKED:
+{question}
+
+ACTUAL ANSWER TO GRADE:
+{actual}
+
+YOUR TASK:
+Check the actual answer against this exact checklist.
+
+REQUIRED CONCEPTS (every one must be present for 100/100):
+{concepts_json}
+
+FORBIDDEN CONTRADICTIONS (any one present caps score at 50/100):
+{forbidden_json}
+
+GRADING RULES:
+1. For each required concept, check if the actual answer contains that concept — even if worded differently.
+2. Concept is PRESENT if the core fact is clearly stated. Concept is MISSING if it is absent or only vaguely implied.
+3. Score = (concepts_present / total_concepts) * 100, rounded to nearest integer.
+4. If any forbidden contradiction is present in the actual answer, cap score at 50 regardless of concepts found.
+5. Do not give partial credit for vague mentions — the concept must be clearly stated.
+
+Respond with valid JSON only. No markdown, no explanation outside the JSON:
+{{
+  "concepts_found": ["list each required concept that is clearly present"],
+  "concepts_missing": ["list each required concept that is absent or only vaguely implied"],
+  "contradictions_found": ["list any forbidden contradictions present in the actual answer"],
+  "score": <integer 0-100>,
+  "reasoning": "one sentence explaining the score"
+}}"""
+
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=200,
+        max_tokens=600,
         messages=[{"role": "user", "content": grader_prompt}],
     )
     raw = response.choices[0].message.content.strip()
-    # strip markdown fences if present
     raw = re.sub(r"```json|```", "", raw).strip()
+
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {"pass": False, "score": 0, "reasoning": f"Grader returned unparseable output: {raw}"}
+        result = json.loads(raw)
+        # Validate and recalculate score from concept counts to prevent grader drift
+        n_required = len(concepts)
+        n_found = len(result.get("concepts_found", []))
+        n_forbidden = len(result.get("contradictions_found", []))
+        if n_required > 0:
+            calculated = round((n_found / n_required) * 100)
+            if n_forbidden > 0:
+                calculated = min(calculated, 50)
+            result["score"] = calculated
+        return result
+    except (json.JSONDecodeError, KeyError):
+        return {
+            "concepts_found":       [],
+            "concepts_missing":     concepts,
+            "contradictions_found": [],
+            "score":                0,
+            "reasoning":            f"Grader returned unparseable output: {raw[:200]}",
+        }
 
 
-def write_results_to_test_file(test_file: Path, results: list[dict], doc_name: str) -> None:
-    """
-    Write test results into the ## Test result section of the test file.
-    Replaces everything from '## Test result' to end of file.
-    """
+def write_results(test_file: Path, results: list[dict], doc_key: str) -> None:
+    """Write rubric results into the ## Test result section of the test file."""
     content = test_file.read_text(encoding="utf-8")
-
-    # strip everything from ## Test result onward
     marker = "## Test result"
     if marker in content:
         content = content[: content.index(marker)].rstrip()
 
-    # build result block
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    overall_pass = all(r["grade"]["pass"] for r in results)
-    avg_score = round(sum(r["grade"]["score"] for r in results) / len(results), 1)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    all_pass = all(r["grade"]["score"] == 100 for r in results)
+    avg_score = round(sum(r["grade"]["score"]
+                      for r in results) / len(results), 1)
+    overall = "PASS" if all_pass else "FAIL"
 
     lines = [
         "",
@@ -196,41 +272,52 @@ def write_results_to_test_file(test_file: Path, results: list[dict], doc_name: s
         "",
         f"**Run timestamp:** {timestamp}",
         f"**Model used:** {MODEL}",
-        f"**Document tested:** kb/architecture/{doc_name}.md",
-        f"**Overall result:** {'PASS' if overall_pass else 'FAIL'}",
+        f"**Document tested:** kb/architecture/{doc_key}.md",
+        f"**Overall result:** {overall}",
         f"**Average score:** {avg_score}/100",
         "",
     ]
 
     for i, r in enumerate(results, start=1):
-        grade = r["grade"]
-        status = "PASS" if grade["pass"] else "FAIL"
+        g = r["grade"]
+        status = "PASS" if g["score"] == 100 else "FAIL"
         lines += [
-            f"### Question {i} — {status} ({grade['score']}/100)",
+            f"### Question {i} — {status} ({g['score']}/100)",
             "",
             f"**Question:** {r['question']}",
             "",
-            f"**Expected answer (summary):**",
-            r["expected"],
+            f"**Concepts found ({len(g['concepts_found'])}/{len(r['concepts'])}):**",
+        ]
+        for c in g["concepts_found"]:
+            lines.append(f"  - [x] {c}")
+        if g["concepts_missing"]:
+            lines.append("")
+            lines.append(f"**Concepts missing:**")
+            for c in g["concepts_missing"]:
+                lines.append(f"  - [ ] {c}")
+        if g["contradictions_found"]:
+            lines.append("")
+            lines.append("**Contradictions found (score capped at 50):**")
+            for c in g["contradictions_found"]:
+                lines.append(f"  - [!] {c}")
+        lines += [
             "",
-            f"**Actual answer from LLM:**",
+            f"**Actual answer:**",
             r["actual"],
             "",
-            f"**Grader reasoning:** {grade['reasoning']}",
+            f"**Grader reasoning:** {g['reasoning']}",
             "",
             "---",
             "",
         ]
 
-    updated = content + "\n" + "\n".join(lines)
-    test_file.write_text(updated, encoding="utf-8")
-    print(f"  Results written to {test_file.name}")
+    test_file.write_text(content + "\n" + "\n".join(lines), encoding="utf-8")
+    print(f"  Results written → {test_file.name}")
 
 
 def run_test_for_document(doc_key: str) -> bool:
-    """Run all injection tests for one document. Returns True if all passed."""
     entry = DOCUMENTS[doc_key]
-    doc_file  = entry["doc_file"]
+    doc_file = entry["doc_file"]
     test_file = entry["test_file"]
 
     print(f"\n{'='*60}")
@@ -239,15 +326,15 @@ def run_test_for_document(doc_key: str) -> bool:
     print(f"  Test file: {test_file}")
 
     if not test_file.exists():
-        print(f"  SKIP: test file not found at {test_file}")
+        print(f"  SKIP: test file not found")
         return True
 
-    document_text = load_document(doc_file)
-    test_content  = test_file.read_text(encoding="utf-8")
-    qa_pairs      = extract_qa_pairs(test_content)
+    doc_text = load_document(doc_file)
+    test_text = test_file.read_text(encoding="utf-8")
+    qa_pairs = extract_qa_pairs(test_text)
 
     if not qa_pairs:
-        print(f"  SKIP: no Q&A pairs found in test file")
+        print("  SKIP: no Q&A pairs with 'Required concepts' found")
         return True
 
     print(f"  Found {len(qa_pairs)} test question(s). Running...")
@@ -255,46 +342,41 @@ def run_test_for_document(doc_key: str) -> bool:
     results = []
     for i, pair in enumerate(qa_pairs, start=1):
         print(f"  Q{i}: {pair['question'][:80]}...")
-        actual = call_openrouter(document_text, pair["question"])
-        grade  = grade_answer(pair["question"], pair["expected"], actual)
-        status = "PASS" if grade["pass"] else "FAIL"
-        print(f"       → {status} ({grade['score']}/100) — {grade['reasoning']}")
+        actual = call_openrouter(doc_text, pair["question"])
+        grade = grade_with_rubric(
+            pair["question"], actual,
+            pair["concepts"], pair["forbidden"]
+        )
+        n_req = len(pair["concepts"])
+        n_fnd = len(grade["concepts_found"])
+        print(
+            f"       → {grade['score']}/100  concepts: {n_fnd}/{n_req}  contradictions: {len(grade['contradictions_found'])}")
         results.append({
             "question": pair["question"],
-            "expected": pair["expected"],
+            "concepts": pair["concepts"],
             "actual":   actual,
             "grade":    grade,
         })
 
-    write_results_to_test_file(test_file, results, doc_key)
-    all_passed = all(r["grade"]["pass"] for r in results)
-    return all_passed
+    write_results(test_file, results, doc_key)
+    return all(r["grade"]["score"] == 100 for r in results)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Oracle Forge KB injection test runner"
-    )
-    parser.add_argument(
-        "--doc",
-        choices=list(DOCUMENTS.keys()),
-        default=None,
-        help="Test a single document. Omit to test all documents.",
-    )
+        description="Oracle Forge KB injection test runner")
+    parser.add_argument("--doc", choices=list(DOCUMENTS.keys()), default=None)
     args = parser.parse_args()
 
-    print(f"Oracle Forge — KB Injection Test Runner")
-    print(f"Model: {MODEL}")
-    print(f"Timestamp: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}")
+    print("Oracle Forge — KB Injection Test Runner (rubric grading)")
+    print(f"Model     : {MODEL}")
+    print(f"Timestamp : {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
 
-    if args.doc:
-        targets = [args.doc]
-    else:
-        # Run in priority order — most critical documents first
-        targets = sorted(DOCUMENTS.keys(), key=lambda k: DOCUMENTS[k]["priority"])
+    targets = [args.doc] if args.doc else sorted(
+        DOCUMENTS.keys(), key=lambda k: DOCUMENTS[k]["priority"]
+    )
 
-    passed = []
-    failed = []
+    passed, failed = [], []
     for doc_key in targets:
         ok = run_test_for_document(doc_key)
         (passed if ok else failed).append(doc_key)
@@ -305,13 +387,12 @@ def main():
     print(f"  Failed : {len(failed)} — {failed}")
 
     if failed:
-        print("\nFAILED documents must be revised before committing.")
-        print("Re-run after revision:")
+        print("\nFailed documents must be revised before committing.")
         for f in failed:
             print(f"  python3 run_injection_tests.py --doc {f}")
         sys.exit(1)
     else:
-        print("\nAll injection tests PASSED. Documents are safe to commit.")
+        print("\nAll injection tests passed at 100/100.")
 
 
 if __name__ == "__main__":

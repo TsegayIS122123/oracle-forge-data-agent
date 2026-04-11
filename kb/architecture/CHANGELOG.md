@@ -1,0 +1,26 @@
+# kb/architecture/ changelog
+
+## 2026-04-11 — Initial KB v1 commit
+
+ADDED: MEMORY.md — context loading index and document registry.
+INJECTION TEST: PASS. Question: "In what order does the agent load KB documents at session start?" Answer matched loading order exactly.
+
+ADDED: tool_scoping.md — database-to-tool mapping for all four DAB engine types.
+INJECTION TEST: PASS. Question: "A query needs PostgreSQL data and MongoDB data. Which tools do I call?" Answer: query_db for each separately, execute_python to merge. Correct.
+
+ADDED: claude_code_memory.md — three-layer memory architecture from March 2026 Claude Code source leak.
+INJECTION TEST: PASS. Question: "What is autoDream and what does it do to topic files?" Answer correctly described background consolidation process.
+
+ADDED: openai_agent_context.md — six-layer context architecture from OpenAI January 2026 data agent writeup.
+INJECTION TEST: PASS. Question: "What is Layer 5 and what is the Oracle Forge equivalent?" Answer correctly identified learning memory and corrections log.
+
+ADDED: kb_v1_architecture.md — KB structure rules and Karpathy method discipline.
+INJECTION TEST: PASS. Question: "What are the four KB subdirectories and what does each contain?" Answer matched all four subdirectory descriptions.
+
+ADDED: CHANGELOG.md (this file).
+
+## Maintenance rules
+- Update this file every time a document is added, revised, or removed.
+- Record the test question and PASS/FAIL result for every change.
+- Documents removed must have their removal reason recorded here.
+- Do not remove the CHANGELOG.md itself.
