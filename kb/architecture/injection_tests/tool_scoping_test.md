@@ -86,7 +86,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:04 UTC
+**Run timestamp:** 2026-04-11 12:25 UTC
 **Model used:** anthropic/claude-sonnet-4
 **Document tested:** kb/architecture/tool_scoping.md
 **Overall result:** PASS
@@ -106,33 +106,34 @@ Forbidden contradictions:
   - [x] Sub-queries go to each database separately before merging
 
 **Actual answer:**
-Based on the document, here's the sequence for handling a query that spans PostgreSQL and MongoDB:
+Based on the document, here's the correct approach for this cross-database query:
 
-## Tools to call and order:
+**Tools to call and order:**
 
 1. **`query_db`** for PostgreSQL customer revenue data
    - Use standard SQL (PostgreSQL 17.9) syntax
-   - Query the revenue data you need
+   - Query the customer revenue from the PostgreSQL database
 
 2. **`query_db`** for MongoDB support ticket count  
    - Use MongoDB aggregation pipeline JSON syntax (NOT SQL)
-   - Format as pipeline arrays: `[{"$match": {...}}, {"$group": {...}}]`
+   - Query format: `[{"$match": {...}}, {"$group": {...}}]`
+   - Get ticket counts per customer from MongoDB
 
 3. **`execute_python`** to merge the results
-   - Fetch results from each database into Python variables
-   - Perform the data merging/joining in Python code
-   - Do NOT attempt cross-database joins at the SQL level
+   - Fetch results from both database calls into Python variables
+   - Merge the results using Python code in the Docker sandbox
+   - Handle any join key format differences (e.g., integer IDs in PostgreSQL vs string IDs in MongoDB)
 
 4. **`return_answer`** with the final merged result
    - Only call this after verifying the result is complete and non-suspicious
 
-## Key points:
-- Route sub-queries to each database separately using `query_db`
-- Never attempt cross-database joins at the SQL level - always merge in Python
-- Use the correct query dialect for each database type (SQL for PostgreSQL, aggregation pipeline for MongoDB)
-- Each tool has a single responsibility - use `query_db` for database queries and `execute_python` for data transformation
+**Important notes:**
+- Do NOT attempt cross-database joins at the SQL level
+- Each database query must be handled separately with the appropriate syntax for that database type
+- Use Python for data transformation and merging, not for running database queries
+- If you get zero rows or suspicious results, investigate join key format mismatches before calling `return_answer`
 
-**Grader reasoning:** All seven required concepts are clearly present and no forbidden contradictions were found in the actual answer.
+**Grader reasoning:** All seven required concepts are clearly present and no forbidden contradictions were found.
 
 ---
 
@@ -168,7 +169,9 @@ Based on the document, for querying a DuckDB dataset:
 - Database file path is defined in db_config.yaml
 - You should use DuckDB-native functions and NOT use PostgreSQL-specific syntax
 
-**Grader reasoning:** All required concepts are clearly present in the actual answer with no forbidden contradictions found.
+The document emphasizes that you should use DuckDB-native functions rather than PostgreSQL-specific syntax when working with DuckDB databases.
+
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
 ---
 
@@ -184,24 +187,24 @@ Based on the document, for querying a DuckDB dataset:
   - [x] Do not call return_answer with an unverified or suspicious result
 
 **Actual answer:**
-Based on the document, here is the information about the `return_answer` tool:
+Based on the document, the `return_answer` tool has the following characteristics:
 
-## Purpose
-The `return_answer` tool is used to "terminate the agent loop and record the final answer." It is described as "the last tool called in any successful agent run."
+**Purpose:**
+- Terminate the agent loop and record the final answer
+- It is the last tool called in any successful agent run
 
-## When exactly to use it
-- Only when "the answer is verified and complete"
-- After you have verified that your result is correct and non-suspicious
-- As the final step in a successful workflow
+**When exactly to use it:**
+- Only when the answer is verified and complete
+- After you have confirmed the result is non-suspicious and accurate
 
-## What you should never do with it
-- **Never call it with an unverified or suspicious result**
-- **Never call it with a zero-row result** - the document explicitly states "Do not call `return_answer` with the zero-row result" because "A zero-row result is a failure signal, not an answer"
-- Never use it until you have properly investigated and resolved any issues with your query results
+**What you should never do with it:**
+- Do not call it with an unverified or suspicious result
+- Do not call it with zero-row results (zero-row results are failure signals, not answers)
+- Do not return zero-row results to the user using this tool
 
-The document emphasizes that if you get zero rows or suspicious results, you must first investigate the cause, adjust your approach, retry using appropriate methods (like `execute_python` for cross-database merging), and only call `return_answer` after the retried result is verified and complete.
+The document emphasizes that if you get suspicious results (like zero rows), you should investigate the cause, adjust your approach, retry using appropriate methods, and only call `return_answer` after the retried result is verified and non-suspicious.
 
-**Grader reasoning:** All five required concepts are clearly present in the answer and no forbidden contradictions were found.
+**Grader reasoning:** All five required concepts are clearly present in the actual answer with no forbidden contradictions found.
 
 ---
 
@@ -220,7 +223,7 @@ The document emphasizes that if you get zero rows or suspicious results, you mus
   - [x] Only call return_answer after the retried result is verified and non-suspicious
 
 **Actual answer:**
-According to the document, when a query returns zero rows, you must follow this exact sequence:
+According to the tool scoping document, when a query returns zero rows, you must follow this exact sequence:
 
 1. **Do not return the zero-row result to the user and do not call `return_answer` with it.**
 
@@ -232,8 +235,8 @@ According to the document, when a query returns zero rows, you must follow this 
 
 5. **Only call `return_answer` after the retried result is verified and non-suspicious.**
 
-The document emphasizes that "A zero-row result is a failure signal, not an answer" and explicitly states not to return zero-row results to the user or call `return_answer` with them.
+The document emphasizes that "A zero-row result is a failure signal, not an answer" and should never be returned directly to the user.
 
-**Grader reasoning:** All eight required concepts are clearly present in the actual answer with no forbidden contradictions detected.
+**Grader reasoning:** All eight required concepts are clearly and explicitly stated in the actual answer with no forbidden contradictions present.
 
 ---

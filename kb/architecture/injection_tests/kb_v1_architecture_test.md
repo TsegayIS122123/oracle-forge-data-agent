@@ -88,11 +88,11 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:05 UTC
+**Run timestamp:** 2026-04-11 12:27 UTC
 **Model used:** anthropic/claude-sonnet-4
 **Document tested:** kb/architecture/kb_v1_architecture.md
-**Overall result:** PASS
-**Average score:** 100.0/100
+**Overall result:** FAIL
+**Average score:** 97.0/100
 
 ### Question 1 — PASS (100/100)
 
@@ -110,19 +110,15 @@ Forbidden contradictions:
 **Actual answer:**
 Based on the document, the four KB subdirectories in the Oracle Forge project are:
 
-## kb/architecture/
-Contains documents about how the agent itself works: the memory architecture, tool scoping rules, context loading order, and structural overview. These documents are written for the agent about the agent. They change when the agent architecture changes, not when DAB datasets change.
+**kb/architecture/** - Contains documents about how the agent itself works, including the memory architecture, tool scoping rules, context loading order, and structural overview. These documents are written for the agent about the agent and change when the agent architecture changes.
 
-## kb/domain/
-Contains documents about the data the agent works with: schema descriptions per DAB dataset, join key formats across database systems, unstructured field inventory, and business term definitions. These documents change when datasets are loaded, when new failure patterns reveal schema misunderstandings, or when domain terms are corrected.
+**kb/domain/** - Contains documents about the data the agent works with, including schema descriptions per DAB dataset, join key formats across database systems, unstructured field inventory, and business term definitions. These documents change when datasets are loaded or when new failure patterns reveal schema misunderstandings.
 
-## kb/evaluation/
-Contains documents about how the agent is scored and what the benchmark requires: DAB query format, pass@1 scoring method, submission requirements, the four DAB failure categories, and what each failure category looks like in agent behavior.
+**kb/evaluation/** - Contains documents about how the agent is scored and what the benchmark requires, including DAB query format, pass@1 scoring method, submission requirements, the four DAB failure categories, and what each failure category looks like in agent behavior.
 
-## kb/corrections/
-Contains `kb/corrections/log.md`, which is the self-learning loop - a running structured log of agent failures written by Drivers after every observed agent failure. The agent reads the last 10 entries at session start, and Intelligence Officers prune outdated entries when newer ones supersede them.
+**kb/corrections/** - Contains the self-learning loop through a running structured log of agent failures (log.md) written by Drivers after every observed agent failure. The agent reads the last 10 entries at session start, and Intelligence Officers prune outdated entries when newer ones supersede them.
 
-**Grader reasoning:** All seven required concepts are clearly present in the answer and no forbidden contradictions were found.
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
 ---
 
@@ -151,37 +147,39 @@ Based on the document, the exact six steps of the injection test protocol are:
 
 The document emphasizes that "A document that has not been injection-tested must not be loaded by the agent under any circumstances" and "A document without a test result in its test file has not been validated and must not be loaded by the agent."
 
-**Grader reasoning:** All seven required concepts are clearly present and correctly stated with no forbidden contradictions.
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer with accurate descriptions of each step and the validation requirement.
 
 ---
 
-### Question 3 — PASS (100/100)
+### Question 3 — FAIL (88/100)
 
 **Question:** What is the Karpathy discipline and what is the core difference between this discipline and standard documentation practice?
 
-**Concepts found (8/8):**
+**Concepts found (7/8):**
   - [x] The Karpathy discipline is removal not accumulation
   - [x] Every document must be minimal and precise
-  - [x] Every document must pass an injection test before committing
   - [x] Standard documentation grows over time by adding more content
   - [x] The Karpathy discipline requires removing everything the LLM already knows from pretraining
   - [x] Only include content specific to DAB these databases and this agent
   - [x] A KB that grows without being tested becomes noise that degrades the agent
   - [x] The test for every sentence is whether the agent reading only that sentence could take the correct action
 
+**Concepts missing:**
+  - [ ] Every document must pass an injection test before committing
+
 **Actual answer:**
-Based on the document, the Karpathy discipline is removal, not accumulation. Every document must be minimal and precise, and must pass an injection test before committing.
+Based on the document, the Karpathy discipline is **removal, not accumulation**. Every document must be minimal and precise.
 
 The core difference between the Karpathy discipline and standard documentation practice is:
 
-- **Standard documentation practice**: grows over time by adding more content
-- **Karpathy method**: does the opposite - it shrinks documents by removing what is not proven to work
+- **Standard documentation practice**: grows over time by **adding more content**
+- **Karpathy method**: does the **opposite** - it **shrinks documents by removing what is not proven to work**
 
 The Karpathy method requires removing everything the LLM already knows from pretraining and only including content specific to DAB, these databases, and this agent — nothing general. The test for every sentence is: if the agent read only this sentence with no other context, could it take the correct action? If no — rewrite it or cut it.
 
-The document emphasizes that a KB that grows without being tested becomes noise that degrades the agent, which is why the Karpathy discipline focuses on precision through reduction rather than expansion.
+The document emphasizes that a KB that grows without being tested becomes noise that degrades the agent, which is why the Karpathy discipline focuses on systematic removal rather than accumulation.
 
-**Grader reasoning:** All eight required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Grader reasoning:** Seven of eight required concepts are clearly present, with only the injection test requirement missing.
 
 ---
 
@@ -209,11 +207,11 @@ It is deliberately kept that small because:
 
 2. **It's loaded at every session start before the question arrives** - Every token it consumes comes directly out of the mandatory pre-load budget before any question-specific loading has begun
 
-3. **Prevents it from becoming a topic document in disguise** - If it grows beyond ~200 tokens, it starts functioning as a topic document masquerading as an index, which wastes mandatory context budget on information that belongs in topic files
+3. **Prevents it from becoming a topic document in disguise** - If it grows beyond ~200 tokens, it starts functioning as a topic document masquerading as an index, wasting mandatory context budget on information that belongs in topic files
 
-4. **Maintains its scanning function** - It needs to be something the agent can scan quickly to decide what to load next, rather than something it needs to read carefully
+4. **Maintains its scanning function** - It needs to be something the agent can scan quickly to decide what to load next, rather than something that requires careful reading
 
-The document emphasizes keeping MEMORY.md small on purpose, with any content that belongs in a topic file moved to that file rather than added to MEMORY.md.
+The document emphasizes that any content belonging in a topic file must be moved to that file, not added to MEMORY.md, to keep it small on purpose.
 
 **Grader reasoning:** All nine required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
