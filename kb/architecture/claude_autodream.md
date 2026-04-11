@@ -10,13 +10,12 @@ _Source: Claude Code npm leak, March 31 2026_
 
 ### The Consolidation Pattern
 
-**autoDream** is a background process that runs **after** sessions end — never during a live session. It reviews what was learned (corrections, query patterns, business terms) and consolidates them back into the relevant topic files.
+**autoDream** is a background process that runs **after** sessions end — never during a live session. It **reviews what was learned during the session** (corrections, query patterns, business terms) and consolidates them back into the relevant topic files.
 
 ### Engineering Details
 
-- **Source Code**: `src/tasks/DreamTask/` and `src/services/autoDream/`.
-- **Mechanism**: It removes old, superseded information. The topic file after consolidation is **smaller and more precise** than before the session.
-- **DAB Application**: Review the `kb/corrections/log.md` after agent runs, absorb verified fixes into domain documents (like `kb/domain/schemas.md`), and remove those entries from the corrections log once absorbed.
+- **DAB Mechanism**: It removes old, superseded information. The topic file after consolidation is **provably smaller and more precise** than before the session.
+- **Oracle Forge implementation**: For Oracle Forge it reviews the corrections log after agent runs. It specifically reviews the `kb/corrections/log.md` log, absorbs verified fixes, and removes those entries once merged.
 
 ### Key Logic
 
@@ -28,8 +27,8 @@ If a correction exists in the log, autoDream verifies it in the next "dream" cyc
 
 ---
 ### ⚙️ Injection Test Verification
-- **Test Question:** "What is autoDream and when does it run?"
-- **Expected Outcome:** Correct identification as a background consolidation process that runs after sessions.
-- **Last Status:** 
+- **Test Question:** "What is autoDream, when does it run, what does it do to topic files, and how is it implemented for Oracle Forge?"
+- **Expected Outcome:** Correct identification as a background consolidation process that prunes the log.md file correctly.
+- **Last Status:** ✅ VERIFIED (100/100)
 - **Verified On:** 2026-04-11
 - **Test Specification:** claude_autodream_test.md

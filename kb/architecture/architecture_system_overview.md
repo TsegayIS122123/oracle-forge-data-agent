@@ -89,6 +89,13 @@ The Karpathy discipline is **removal, not accumulation**.
 - Remove everything the LLM already knows from pretraining; include only DAB-specific knowledge.
 - The test for every sentence is: "If the agent read only this sentence with no other context, could it take the correct action?"
 
+## Worktree Sub-Agent Spawn Modes (Claude Code Pattern)
+
+The agent uses git worktrees to achieve process isolation for parallel experiments. 
+- **Isolated Testing:** Multiple trial runs of the same query run in isolation (`src/tools/EnterWorktreeTool.ts`) to prevent state corruption.
+- **Aggregation:** Their results are aggregated by the execution harness after trials finish.
+- **Rule:** Never test destructive modifications directly in the primary workspace. Always spawn a sub-agent into an isolated worktree.
+
 ## Token Budget Summary
 
 | Document | Budget | Load Type |
@@ -102,8 +109,8 @@ The Karpathy discipline is **removal, not accumulation**.
 
 ---
 ### ⚙️ Injection Test Verification
-- **Test Question:** "What are the four KB subdirectories and what does each one contain?"
-- **Expected Outcome:** Correct identification of architecture, domain, evaluation, and corrections.
-- **Last Status:** ✅ PASS (100/100)
+- **Test Questions Check:** 4 KB subdirectories, Karpathy Method rules, and Worktree Sub-Agent details.
+- **Expected Outcome:** Identification of architecture/domain/evaluation/corrections, removal principle, and process isolation.
+- **Last Status:** ✅ VERIFIED (100/100)
 - **Verified On:** 2026-04-11
-- **Test Specification:** [kb_v1_architecture_test.md](file:///g:/projects/group/oracle-forge-data-agent/kb/architecture/injection_tests/kb_v1_architecture_test.md)
+- **Test Specification:** architecture_system_overview_test.md

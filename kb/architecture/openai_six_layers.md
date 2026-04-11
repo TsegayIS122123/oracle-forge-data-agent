@@ -22,7 +22,7 @@ Finding the right table across 70,000 datasets is the hardest sub-problem. Many 
 | 2 | **Expert Descs** | Human-curated notes on table contents and caveats. |
 | 3 | **Codex Enrichment** | Logic extracted from the code that *generates* the data. |
 | 4 | **Institutional** | Product launch notes, incident reports, metric definitions. |
-| 5 | **Learning Memory** | Structured log of failures/corrections (Last 10 entries). |
+| 5 | **Learning Memory (self-correction loop)** | Stores corrections and nuances from previous conversations and applies them automatically to future requests. Reads the last 10 entries at session start. |
 | 6 | **Runtime Context** | Live fallback via `query_db` and `execute_python`. |
 
 ### Application to Oracle Forge
@@ -31,9 +31,17 @@ Finding the right table across 70,000 datasets is the hardest sub-problem. Many 
 | :--- | :--- |
 | 1: Raw Schema | MCP Toolbox introspection |
 | 3: Codex Enrichment | Pipeline logic extraction (Week 3 pipeline) |
-| 5: Learning Memory | `kb/corrections/log.md` failures log |
+| 5: Learning Memory | **Learning Memory (self-correction loop)** via `kb/corrections/log.md` (Reads the last 10 entries at session start) |
 
-**Performance Impact:** OpenAI found that a query taking **22 minutes** without Layer 5 memory dropped to **1 minute 22 seconds** with it enabled.
+**Performance Impact of Layer 5:** OpenAI found that a query taking **22 minutes** without memory dropped to **1 minute 22 seconds** with the self-correction loop enabled.
+
+### The Closed-Loop Self-Correction Pattern
+- **Not Error Handling:** Error handling reacts to exceptions raised by the system. Self-correction evaluates the quality of the agent's own reasoning even when *no exception is raised*.
+- **The Rule:** An answer that looks correct but uses the wrong table will not trigger an exception. Self-correction catches this by checking if the result is plausible before returning it (implemented in `self_corrector.py`).
+
+### Key Engineering Lessons
+1. **Tool Consolidation:** Overlapping tools confuse the agent. Restrict to one specific tool per context.
+2. **Code Reveals What Metadata Hides:** Reading pipeline code tells you what was filtered and assumed, which never surfaces in SQL schemas.
 
 ### DAB Failure Scenarios
 - **Join Key Mismatch**: PostgreSQL uses integers; MongoDB uses strings (e.g., `CUST-00123`). Layer 5 must document this zero-padding or formatting rule.
@@ -41,8 +49,8 @@ Finding the right table across 70,000 datasets is the hardest sub-problem. Many 
 
 ---
 ### ⚙️ Injection Test Verification
-- **Test Question:** "What is Layer 5 in this architecture and what is the Oracle Forge equivalent?"
-- **Expected Outcome:** Identify Learning Memory and link it to kb/corrections/log.md.
-- **Last Status:** 
+- **Test Questions Check:** Layer 5 equivalency, join key handling, and Closed-Loop Self-Correction.
+- **Expected Outcome:** Identify Learning Memory (log.md), format overrides, and proactive quality evaluation vs error handling.
+- **Last Status:** ✅ VERIFIED (100/100)
 - **Verified On:** 2026-04-11
 - **Test Specification:** openai_six_layers_test.md

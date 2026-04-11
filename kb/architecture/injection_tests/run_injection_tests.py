@@ -1,7 +1,7 @@
 """
 Oracle Forge — Unified KB Injection Test Runner
 ===============================================
-Automated rubric-based testing for modular architecture docs.
+Pedantic rubric-based testing for modular architecture docs.
 """
 
 import os
@@ -10,7 +10,7 @@ import re
 import json
 import argparse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -28,7 +28,6 @@ for candidate in [REPO_ROOT / ".env", Path(".env")]:
 # ── OpenRouter client ───────────────────────────────────────────────────────
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not API_KEY:
-    # Use a placeholder if not set, but warn the user
     API_KEY = "sk-placeholder"
 
 client = OpenAI(
@@ -120,7 +119,7 @@ def extract_qa_pairs(test_content: str) -> list[dict]:
 
 def call_openrouter(document_text: str, question: str) -> str:
     if API_KEY == "sk-placeholder":
-        return "ERROR: OPENROUTER_API_KEY NOT SET. PLEASE ADD TO .ENV"
+        return "ERROR: OPENROUTER_API_KEY NOT SET."
     
     response = client.chat.completions.create(
         model=MODEL,
@@ -148,19 +147,28 @@ def grade_with_rubric(question: str, actual: str,
     concepts_json = json.dumps(concepts)
     forbidden_json = json.dumps(forbidden)
 
-    grader_prompt = f"""Grade this answer against the rubric.
+    grader_prompt = f"""You are a pedantic technical grader. Grade this answer against the REQUIRED CONCEPTS.
+If a concept is clearly present in the answer (even in different words), it is FOUND.
+If a concept is absent or only vaguely implied, it is MISSING.
+
 QUESTION: {question}
 ANSWER: {actual}
-CONCEPTS: {concepts_json}
-FORBIDDEN: {forbidden_json}
+
+REQUIRED CONCEPTS (CHECKLIST): {concepts_json}
+FORBIDDEN CONTRADICTIONS: {forbidden_json}
+
+GRADING RULES:
+1. Every required concept must be checked.
+2. If any forbidden contradiction is present, the score is capped at 50.
+3. If all required concepts are found and no forbidden content is present, the score MUST be 100.
 
 Respond with valid JSON:
 {{
-  "concepts_found": [],
-  "concepts_missing": [],
+  "concepts_found": ["list found concepts exactly as they appeared in the CHECKLIST"],
+  "concepts_missing": ["list missing concepts exactly as they appeared in the CHECKLIST"],
   "contradictions_found": [],
-  "score": <0-100>,
-  "reasoning": ""
+  "score": <0-100 recalculated as (len(found)/len(required))*100>,
+  "reasoning": "one sentence"
 }}"""
 
     response = client.chat.completions.create(
@@ -171,9 +179,17 @@ Respond with valid JSON:
     raw = re.sub(r"```json|```", "", raw).strip()
 
     try:
-        return json.loads(raw)
+        data = json.loads(raw)
+        # Force strict score calculation
+        total = len(concepts)
+        found = len(data.get("concepts_found", []))
+        score = round((found / total) * 100) if total > 0 else 100
+        if len(data.get("contradictions_found", [])) > 0:
+            score = min(score, 50)
+        data["score"] = score
+        return data
     except:
-        return {"score": 0, "reasoning": "Parse Error", "concepts_found": [], "concepts_missing": concepts, "contradictions_found": []}
+        return {"score": 0, "reasoning": "Grader Output Error", "concepts_found": [], "concepts_missing": concepts, "contradictions_found": []}
 
 
 def write_results(test_file: Path, results: list[dict], doc_key: str) -> None:
@@ -182,16 +198,27 @@ def write_results(test_file: Path, results: list[dict], doc_key: str) -> None:
     if marker in content:
         content = content[: content.index(marker)].rstrip()
 
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = ["", "## Test result", "", f"**Run timestamp:** {timestamp}", f"**Document:** {doc_key}"]
     for i, r in enumerate(results, start=1):
         g = r["grade"]
-        lines += [f"### Q{i}: {g['score']}/100", f"**Actual:** {r['actual']}", "---"]
+        lines += [
+            f"### Q{i}: {g['score']}/100",
+            f"**Concepts found:**",
+            *[f"  - [x] {c}" for c in g.get("concepts_found", [])],
+            f"**Concepts missing:**",
+            *[f"  - [ ] {c}" for c in g.get("concepts_missing", [])],
+            f"**Actual answer:**",
+            r["actual"],
+            f"**Grader reasoning:** {g.get('reasoning', 'No reasoning provided')}",
+            "---"
+        ]
 
     test_file.write_text(content + "\n" + "\n".join(lines), encoding="utf-8")
 
 
 def run_test_for_document(doc_key: str) -> bool:
+    print(f"Testing {doc_key}...")
     entry = DOCUMENTS[doc_key]
     doc_text = load_document(entry["doc_file"])
     qa_pairs = extract_qa_pairs(entry["test_file"].read_text(encoding="utf-8"))
@@ -203,7 +230,7 @@ def run_test_for_document(doc_key: str) -> bool:
         results.append({"question": pair["question"], "actual": actual, "grade": grade})
     
     write_results(entry["test_file"], results, doc_key)
-    return all(r["grade"]["score"] == 100 for r in results)
+    return all(r["grade"].get("score", 0) == 100 for r in results)
 
 
 def main():

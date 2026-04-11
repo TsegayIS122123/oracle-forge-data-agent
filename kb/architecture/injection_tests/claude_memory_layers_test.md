@@ -37,37 +37,55 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 14:44 UTC
+**Run timestamp:** 2026-04-11 16:41 UTC
 **Document:** claude_memory
-### Q1: 85/100
-**Actual:** Based on the document, MEMORY.md serves as the **Index Layer** (Layer 1) in Claude Code's three-layer memory architecture.
+### Q1: 100/100
+**Concepts found:**
+  - [x] MEMORY.md is a small index file not a knowledge document
+  - [x] It lists every other KB document by name with a one-sentence description
+  - [x] The agent reads MEMORY.md first at session start
+  - [x] MEMORY.md is approximately 200 tokens
+  - [x] Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
+**Concepts missing:**
+**Actual answer:**
+Based on the document, MEMORY.md serves as the **Index Layer** in Claude Code's three-layer memory architecture with the following purpose and limits:
 
-**Purpose of MEMORY.md:**
-- Acts as an entry point for context loading
-- Functions as a lightweight pointer index (~150 characters per entry)
-- Works like a table of contents that points to topic files rather than containing content itself
-- Provides mandatory pre-load information at every session start
+## Purpose of MEMORY.md:
+- **Entry point for context loading** - acts as a lightweight pointer index
+- **Lists every other KB document by name with a one-sentence description** 
+- **Decision-making tool** - the agent reads MEMORY.md first at session start to decide which topic files to load next
+- Functions like a **table of contents** - pointing to topic files rather than containing content itself
 
-**Token limit:**
-MEMORY.md has a **strict cap of ~200 tokens**.
+## Token Limit:
+- **~200 tokens (strict cap)**
+- The document explicitly states that "Growing it beyond this defeats its purpose as an index"
+- Each entry is kept to approximately ~150 characters per entry to maintain the lightweight nature
 
-This token budget constraint is part of the system's approach to solving "context entropy" by treating memory as an external system rather than part of the context window, allowing the agent to maintain organized access to information without overwhelming the context with unnecessary details.
+The key insight is that MEMORY.md treats memory as an external system rather than part of the context window, helping solve "context entropy" by providing efficient navigation to relevant knowledge without bloating the context.
+**Grader reasoning:** All five required concepts are clearly present in the answer and no forbidden contradictions exist.
 ---
-### Q2: 75/100
-**Actual:** Based on the document, session transcripts in Claude Code's memory system are:
+### Q2: 100/100
+**Concepts found:**
+  - [x] Session transcripts are logs of past agent runs
+  - [x] They record queries, tools, and results
+  - [x] They are never pre-loaded into context
+  - [x] The agent searches them only on demand
+  - [x] Context window budget management in QueryEngine.ts enforces this
+**Concepts missing:**
+**Actual answer:**
+Based on the document, session transcripts in Claude Code's memory system are:
 
 **What they are:**
-- **Layer 3** of the three-layer memory architecture
 - Located in `.claude/sessions/`
 - Searchable records of past interactions
-- Part of the "interaction memory" component
+- Logs of past agent runs that record exactly which queries were asked, which tools were called, and what results came back
 
 **Why they are never pre-loaded:**
-Session transcripts are never pre-loaded to prevent "context entropy" - the tendency for long agent sessions to become confused. The document indicates that:
+- **Cost Logic**: Searching is cheap, while pre-loading is expensive
+- **Context Rule**: Session transcripts are never pre-loaded into context to prevent context window bloat by avoiding unnecessary injections of historical data
+- **When loaded**: The agent searches them only when a new question closely resembles a past one (on-demand basis)
+- **Enforcement**: `src/QueryEngine.ts` enforces this never-pre-load discipline
 
-1. They are loaded only "when needed" - the agent searches them on-demand rather than loading them at session start
-2. There is strict "never-pre-load discipline for transcripts" enforced by `src/QueryEngine.ts`
-3. This is part of treating memory as an "external system" rather than part of the context window
-
-This approach preserves the context window for active work while still allowing access to historical interaction data when specifically required, preventing the confusion that comes from having too much historical context loaded simultaneously.
+This design prevents "context entropy" by keeping the context window clean while still allowing access to historical information when specifically needed through search rather than automatic loading.
+**Grader reasoning:** All five required concepts are clearly present in the answer and no forbidden contradictions exist.
 ---
