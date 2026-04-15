@@ -268,7 +268,7 @@ def _truncate(value: str, limit: int) -> str:
 
 
 def infer_canonical_dataset_from_question(question: str) -> Optional[str]:
-    """Map question text to a canonical query_* dataset id for KB schema scoping (optional)."""
+    """Map question text to a canonical query_* id to scope which KB/domain files matter (schema + join rows). Not an answer cache."""
     if not question:
         return None
     lower = question.lower()
@@ -294,6 +294,67 @@ DAB_CHALLENGE_ROUTER_HINT = (
 )
 
 
+def extract_join_key_glossary_section_for_dataset(
+    repo_root: Path, canonical_dataset: Optional[str]
+) -> str:
+    """
+    Per-dataset row under ## Per-Dataset Join Keys in kb/domain/join_key_glossary.md.
+    Matches headings like '### Book Reviews (query_bookreview)' when canonical_dataset is query_bookreview.
+    """
+    if not canonical_dataset:
+        return ""
+    path = repo_root / "kb" / "domain" / "join_key_glossary.md"
+    if not path.exists():
+        return ""
+    needle = canonical_dataset.strip().lower()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    out: List[str] = []
+    capture = False
+    for line in lines:
+        if line.startswith("### "):
+            if capture:
+                break
+            rest = line[4:].strip().lower()
+            if needle in rest:
+                capture = True
+        elif capture and line.startswith("## ") and not line.startswith("###"):
+            break
+        if capture:
+            out.append(line)
+    return "\n".join(out).strip()
+
+
+def build_agent_session_kb_context(
+    user_question: str,
+    repo_root: Optional[Path] = None,
+    *,
+    max_domain_chars: int = 6000,
+    corrections_tail_lines: int = 80,
+) -> str:
+    """
+    Knowledge loaded for this agent request from kb/ (challenge: architecture + domain + corrections;
+    see kb/domain/kb_v2_domain.md). Used after toolbox steps to answer without hardcoded task logic.
+    """
+    root = _resolve_repo_root(repo_root)
+    ds = infer_canonical_dataset_from_question(user_question)
+    layers = build_context_layers(
+        dataset=ds,
+        user_question=user_question,
+        repo_root=root,
+        max_layer_chars=max_domain_chars,
+        corrections_tail_lines=corrections_tail_lines,
+    )
+    jk = extract_join_key_glossary_section_for_dataset(root, ds)
+    chunks: List[str] = [
+        "### Architecture layer (kb/architecture)\n" + layers.layer_1_architecture,
+    ]
+    if jk:
+        chunks.append("### Join key glossary (dataset-scoped row)\n" + jk)
+    chunks.append("### Domain layer (kb/domain)\n" + layers.layer_2_domain)
+    chunks.append("### Corrections memory (kb/corrections)\n" + layers.layer_3_corrections)
+    return "\n\n".join(chunks).strip()
+
+
 def build_router_planner_user_payload(
     user_question: str,
     route_candidates_compact: Dict[str, Any],
@@ -303,9 +364,10 @@ def build_router_planner_user_payload(
     corrections_tail_lines: int = 80,
 ) -> Dict[str, Any]:
     """
-    Single assembly point for the OpenRouter planner user message: DAB route candidates + KB layers (DRY).
-    Keeps discovery/schema logic in the app; KB assembly stays here per challenge “three layers” requirement.
+    Planner message: dab_candidates + KB from disk (kb/architecture, kb/domain, kb/corrections).
+    Aligns with kb/domain/kb_v2_domain.md and three-layer context; not hardcoded task answers.
     """
+    root = _resolve_repo_root(repo_root)
     dataset = infer_canonical_dataset_from_question(user_question)
     layers = build_context_layers(
         dataset=dataset,
@@ -314,7 +376,7 @@ def build_router_planner_user_payload(
         max_layer_chars=max_kb_layer_chars,
         corrections_tail_lines=corrections_tail_lines,
     )
-    return {
+    payload: Dict[str, Any] = {
         "question": user_question,
         "dab_candidates": route_candidates_compact,
         "kb_layers": {
@@ -326,6 +388,10 @@ def build_router_planner_user_payload(
         "dataset_hint_for_kb": dataset,
         "challenge_alignment": DAB_CHALLENGE_ROUTER_HINT,
     }
+    jk = extract_join_key_glossary_section_for_dataset(root, dataset)
+    if jk:
+        payload["kb_focus"] = {"join_key_glossary_dataset_section": jk}
+    return payload
 
 
 if __name__ == "__main__":

@@ -1,4 +1,26 @@
-from agent.context_loader import build_context_layers, build_router_planner_user_payload
+from pathlib import Path
+
+from agent.context_loader import (
+    build_context_layers,
+    build_router_planner_user_payload,
+    extract_join_key_glossary_section_for_dataset,
+)
+
+
+def test_join_key_glossary_excerpt_for_dataset():
+    root = Path(__file__).resolve().parents[2]
+    ex = extract_join_key_glossary_section_for_dataset(root, "query_bookreview")
+    assert "book_id" in ex and "purchase_id" in ex
+
+
+def test_router_payload_includes_kb_focus_from_join_glossary():
+    payload = build_router_planner_user_payload(
+        "What is the average rating for books grouped by publication year?",
+        {"toolbox_tools": []},
+    )
+    assert payload.get("dataset_hint_for_kb") == "query_bookreview"
+    assert "kb_focus" in payload
+    assert "purchase_id" in payload["kb_focus"]["join_key_glossary_dataset_section"]
 
 
 def test_build_router_planner_user_payload_merges_dab_and_kb():

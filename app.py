@@ -109,6 +109,11 @@ def apply_env_files() -> None:
 
 apply_env_files()
 OPENROUTER_ROUTER_MODEL = os.getenv("OPENROUTER_ROUTER_MODEL", "google/gemini-2.0-flash-001")
+OPENROUTER_SYNTH_MODEL = os.getenv("OPENROUTER_SYNTH_MODEL", "").strip() or OPENROUTER_ROUTER_MODEL
+
+TOOLBOX_SQL_TOOL_NAMES = frozenset(
+    {"postgres-bookreview", "sqlite-bookreview", "mongo-yelp-business", "mongo-yelp-aggregate"}
+)
 
 
 def openrouter_api_key() -> str:
@@ -941,18 +946,69 @@ def choose_file_db(text: str, db_type: str, options: dict[str, dict[str, str]]) 
         dataset_alias = dataset.replace("query_", "")
         if dataset in lower or dataset_alias in lower:
             return item
+    # CRM/BANT lead qualification questions usually target query_crmarenapro.
+    if db_type in {"sqlite", "duckdb"} and _has_any_intent_term(
+        lower, ("lead", "bant", "qualified", "qualification", "opportunity", "salesforce")
+    ):
+        crm_pool = [x for x in candidates if "crmarenapro" in x.get("dataset", "").lower()]
+        if crm_pool:
+            if db_type == "sqlite":
+                pref = sorted(
+                    (x for x in crm_pool if x.get("client_name") == "core_crm"),
+                    key=lambda x: x.get("path", ""),
+                )
+                if pref:
+                    return pref[0]
+            return sorted(crm_pool, key=lambda x: x.get("path", ""))[0]
     # Fallbacks by obvious domain terms.
     if db_type == "duckdb":
+        if heuristic_equity_stock_question(lower):
+            by_hint = find_duckdb_dataset_by_hint(options, "stockmarket") or find_duckdb_dataset_by_hint(
+                options, "stocktrade"
+            )
+            if by_hint:
+                return by_hint
         for token in ("stock", "yelp", "music", "crm", "sales"):
             for item in candidates:
                 if token in lower and token in item["dataset"].lower():
                     return item
     if db_type == "sqlite":
-        for token in ("agnews", "news", "article", "metadata", "patent", "googlelocal", "review", "book"):
+        for token in (
+            "agnews",
+            "news",
+            "article",
+            "metadata",
+            "patent",
+            "googlelocal",
+            "review",
+            "book",
+            "crm",
+            "lead",
+            "bant",
+            "salesforce",
+        ):
             for item in candidates:
                 if token in lower and token in item["dataset"].lower():
                     return item
     return None
+
+
+def _has_any_intent_term(lower: str, terms: tuple[str, ...]) -> bool:
+    """
+    Word-aware term matching to avoid false positives from raw substrings
+    (e.g., 'authority' accidentally matching token 'author').
+    """
+    for term in terms:
+        t = term.strip().lower()
+        if not t:
+            continue
+        if " " in t:
+            if t in lower:
+                return True
+            continue
+        if re.search(rf"\b{re.escape(t)}\b", lower):
+            return True
+    return False
 
 
 def find_duckdb_dataset_by_hint(options: dict[str, dict[str, str]], *needles: str) -> dict[str, str] | None:
@@ -1175,8 +1231,26 @@ def normalize_executor(name: str) -> str:
         "duckdblocal": "duckdb-local",
         "sqlitelocal": "sqlite-local",
         "mongolocal": "mongo-local",
+        "toolboxchain": "toolbox-chain",
     }
     return aliases.get(n.replace("-", ""), n)
+
+
+def validate_toolbox_chain_steps(raw: Any) -> list[dict[str, str]] | None:
+    if not isinstance(raw, list) or not raw:
+        return None
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return None
+        tool = str(item.get("tool", "")).strip()
+        q = item.get("query")
+        if tool not in TOOLBOX_SQL_TOOL_NAMES or not isinstance(q, str) or not q.strip():
+            return None
+        if tool.startswith("mongo-yelp"):
+            return None
+        out.append({"tool": tool, "query": q.strip()})
+    return out
 
 
 AGG_ALIASES = {
@@ -1391,6 +1465,63 @@ def build_route_candidates(db_options: dict[str, dict[str, str]]) -> dict[str, A
     }
 
 
+def llm_synthesize_toolbox_chain_answer(
+    user_question: str,
+    step_results: list[dict[str, Any]],
+    kb_session_context: str,
+) -> dict[str, Any]:
+    api_key = openrouter_api_key()
+    if not api_key:
+        return {"error": "OPENROUTER_API_KEY required for cross-step synthesis", "step_results": step_results}
+    try:
+        payload = json.dumps(step_results, ensure_ascii=True, default=str)
+        max_ch = int(os.getenv("TOOLBOX_CHAIN_SYNTH_MAX_CHARS", "180000"))
+        if len(payload) > max_ch:
+            payload = payload[:max_ch] + "\n...[truncated for synthesis context]"
+        client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
+        sys = (
+            "You are a data analyst. The KB context below was loaded from the repo knowledge base for this request "
+            "(architecture, domain, corrections, join glossary). Use it to interpret keys and merge multi-database "
+            "results per DataAgentBench-style rules. Answer from the data and KB only — do not invent facts. "
+            "State the final answer first."
+        )
+        user_msg = (
+            f"User question:\n{user_question}\n\n--- KB (this session, from disk) ---\n"
+            f"{kb_session_context or '[KB unavailable]'}\n\n"
+            f"--- Query results (JSON per toolbox step) ---\n{payload}"
+        )
+        r = client.chat.completions.create(
+            model=OPENROUTER_SYNTH_MODEL,
+            messages=[{"role": "system", "content": sys}, {"role": "user", "content": user_msg}],
+            temperature=0,
+        )
+        text = (r.choices[0].message.content or "").strip()
+        return {
+            "answer": text,
+            "step_results": step_results,
+            "synthesis_model": OPENROUTER_SYNTH_MODEL,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc), "step_results": step_results}
+
+
+def execute_toolbox_chain_and_synthesize(user_question: str, plan: dict[str, Any]) -> Any:
+    from agent.context_loader import build_agent_session_kb_context
+
+    steps_in = plan.get("steps")
+    if not isinstance(steps_in, list):
+        return {"error": "Plan missing steps"}
+    raw: list[dict[str, Any]] = []
+    for s in steps_in:
+        if not isinstance(s, dict):
+            return {"error": "Invalid step"}
+        tool = str(s.get("tool", ""))
+        q = str(s.get("query", ""))
+        raw.append({"tool": tool, "query": q, "result": run_toolbox(tool, {"query": q})})
+    kb = build_agent_session_kb_context(user_question, ROOT)
+    return llm_synthesize_toolbox_chain_answer(user_question, raw, kb)
+
+
 def llm_build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> dict[str, Any] | None:
     api_key = openrouter_api_key()
     if not api_key:
@@ -1406,32 +1537,34 @@ def llm_build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> di
                 user_input,
                 candidates,
                 repo_root=ROOT,
-                max_kb_layer_chars=2800,
+                max_kb_layer_chars=9000,
             )
         except Exception:  # noqa: BLE001
             user_payload = {"question": user_input, "dab_candidates": candidates, "kb_layers": {}}
         system_prompt = (
-            "You are a data-agent planner for heterogeneous DataAgentBench-style workloads. "
-            "The user message includes dab_candidates (paths, live_schema, mongo_datasets) AND kb_layers "
-            "(Oracle Forge: architecture rules, domain semantics/join keys from kb/domain, corrections memory). "
-            "Use dab_candidates for exact table/collection names and DB paths; use kb_layers.domain for business "
-            "meaning and join-key rules when choosing resources. **Decide routing from kb_layers first**, then "
-            "dab_candidates — do not default to a single database without checking both. "
-            "Book metadata vs per-review ratings: kb/schemas describe Postgres books_info vs SQLite review; "
-            "join keys book_id = purchase_id for query_bookreview. Questions about decades of publication and "
-            "average rating across books may require SQL against both engines (toolbox postgres-bookreview + "
-            "sqlite-bookreview) or the matching sqlite-local / executor paths with correct joins per kb. "
+            "You are a data-agent planner for DataAgentBench-style workloads (see user message challenge_alignment). "
+            "The user JSON includes dab_candidates (runtime paths/schemas) and kb_layers loaded from kb/ on disk: "
+            "architecture (kb/architecture), domain (kb/domain including schemas and join glossary), corrections (kb/corrections). "
+            "If kb_focus.join_key_glossary_dataset_section is present, treat it as the authoritative join-key row for "
+            "dataset_hint_for_kb — use it with kb_layers.domain before choosing tools. "
+            "Do not assume all tables live in one database; follow kb_layers for multi-DB splits. "
+            "When the KB indicates multiple engines are required, use executor toolbox-chain with steps: an array of "
+            "{{tool, query}} with one read-only SQL per step (tools from candidates.toolbox_tools only). "
+            "Derive filters, projections, and joins from kb_layers and dab_candidates — do not embed task-specific answers. "
             "Return ONLY valid JSON (no markdown fences).\n"
             "Always include keys: executor, tool, database, dataset_db, reason, query.\n"
-            "executor ∈ toolbox | sqlite-local | duckdb-local | yelp-analytics | mongo-local.\n"
+            "executor ∈ toolbox | toolbox-chain | sqlite-local | duckdb-local | yelp-analytics | mongo-local.\n"
+            "toolbox-chain: set tool to toolbox-chain, query to null, and include steps: a JSON array of "
+            "{{tool, query}} objects where each tool is from candidates.toolbox_tools and each query is read-only SQL for that engine.\n"
             "tool: exact toolbox name from candidates.toolbox_tools when executor=toolbox; "
+            "toolbox-chain when executor=toolbox-chain; "
             "sqlite-local-query | duckdb-local-query for file SQL executors; yelp-mongo-duckdb when executor=yelp-analytics; "
             "mongo-local-aggregate when executor=mongo-local.\n"
             "database: human label for toolbox/yelp-analytics/mongo-local (e.g. articles_db). "
             "For sqlite-local / duckdb-local set database to the chosen path string from "
             "candidates.sqlite_local_options or duckdb_local_options.\n"
             "dataset_db: label field from candidates for file DBs, else empty string.\n"
-            "query: SQL for sqlite-local | duckdb-local | toolbox SQL tools when applicable, else null.\n"
+            "query: SQL for sqlite-local | duckdb-local | toolbox SQL tools when executor=toolbox; null when executor=toolbox-chain.\n"
             "mongo-local: set mongo_database and mongo_collection from candidates.mongo_datasets (use db_name and a "
             "collection from collections[]). Include mongo_pipeline as a JSON array of aggregation stages "
             "(same allowed ops as mongo-yelp-aggregate). For AG News–style questions about article title/description, "
@@ -1485,7 +1618,7 @@ def llm_build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> di
         if not parsed:
             return None
         ex = normalize_executor(str(parsed.get("executor", "")))
-        if ex not in {"toolbox", "sqlite-local", "duckdb-local", "yelp-analytics", "mongo-local"}:
+        if ex not in {"toolbox", "toolbox-chain", "sqlite-local", "duckdb-local", "yelp-analytics", "mongo-local"}:
             return None
         route = {
             "executor": ex,
@@ -1495,7 +1628,15 @@ def llm_build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> di
             "reason": f"{parsed.get('reason', 'LLM plan')} (model: {OPENROUTER_ROUTER_MODEL})",
         }
         out: dict[str, Any] = {"route": route, "query": parsed.get("query")}
-        if ex == "mongo-local":
+        if ex == "toolbox-chain":
+            steps = validate_toolbox_chain_steps(parsed.get("steps"))
+            if not steps:
+                return None
+            route["tool"] = "toolbox-chain"
+            route["database"] = "multi-toolbox"
+            out["steps"] = steps
+            out["query"] = None
+        elif ex == "mongo-local":
             route["tool"] = "mongo-local-aggregate"
             dbn = (
                 str(
@@ -1654,67 +1795,64 @@ def build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> dict[s
             "query": query,
         }
 
-    # Equity / OHLC / price series → DataAgentBench query_stockmarket DuckDB (not Postgres bookreview).
-    if heuristic_equity_stock_question(lower):
-        selected = find_duckdb_dataset_by_hint(db_options, "stockmarket")
-        if not selected:
-            selected = find_duckdb_dataset_by_hint(db_options, "stocktrade")
-        if selected:
-            query = user_input if sql_like else nl_to_sql_duckdb_equity(user_input)
-            return {
-                "route": {
-                    "executor": "duckdb-local",
-                    "tool": "duckdb-local-query",
-                    "database": selected["path"],
-                    "dataset_db": selected["label"],
-                    "reason": (
-                        "Heuristic equity/stock workload (DataAgentBench-style); routed to stocktrade DuckDB. "
-                        "Prefer OPENROUTER_API_KEY for full LLM routing."
-                    ),
-                },
-                "query": query,
-            }
-
     # Explicit DuckDB route via dataset mention or keywords.
-    if "duckdb" in lower or any(
-        token in lower
-        for token in ("stock", "sales_pipeline", "user_database", "yelp", "trading", "equity", "ohlc")
-    ):
+    duckdb_terms = (
+        "stock",
+        "sales_pipeline",
+        "user_database",
+        "yelp",
+        "trading",
+        "equity",
+        "ohlc",
+        "adjusted close",
+        "adjusted closing",
+        "closing price",
+        "share price",
+        "ticker",
+        "nasdaq",
+        "nyse",
+    )
+    if re.search(r"\bduckdb\b", lower) or _has_any_intent_term(lower, duckdb_terms) or heuristic_equity_stock_question(lower):
         selected = choose_file_db(user_input, "duckdb", db_options)
         if not selected:
             return plan_execution_error(
                 "DuckDB was requested but no db_config.yaml DuckDB file could be inferred. "
                 "Name the dataset (e.g. query_yelp) or enable the LLM planner."
             )
-        query = user_input if sql_like else nl_to_sql("duckdb", user_input)
+        stock_dataset = selected.get("dataset", "").lower()
+        stockish = stock_dataset in {"query_stockmarket", "query_stockindex"} and heuristic_equity_stock_question(lower)
+        query = user_input if sql_like else (nl_to_sql_duckdb_equity(user_input) if stockish else nl_to_sql("duckdb", user_input))
         return {
             "route": {
                 "executor": "duckdb-local",
                 "tool": "duckdb-local-query",
                 "database": selected["path"],
                 "dataset_db": selected["label"],
-                "reason": "Detected DuckDB-oriented query intent.",
+                "reason": (
+                    "Detected DuckDB-oriented query intent with dataset-aware routing from discovered DAB sources."
+                ),
             },
             "query": query,
         }
 
     # Explicit SQLite route via dataset mention or keywords.
-    if "sqlite" in lower or any(
-        token in lower
-        for token in (
-            "review",
-            "metadata",
-            "tracks",
-            "patent_publication",
-            "patent",
-            "author",
-            "crm",
-            "package",
-            "github",
-            "google local",
-            "googlelocal",
-        )
-    ):
+    sqlite_terms = (
+        "review",
+        "metadata",
+        "tracks",
+        "patent_publication",
+        "patent",
+        "author",
+        "crm",
+        "lead",
+        "bant",
+        "salesforce",
+        "package",
+        "github",
+        "google local",
+        "googlelocal",
+    )
+    if re.search(r"\bsqlite\b", lower) or _has_any_intent_term(lower, sqlite_terms):
         selected = choose_file_db(user_input, "sqlite", db_options)
         if not selected:
             return plan_execution_error(
@@ -1746,6 +1884,8 @@ def build_plan(user_input: str, db_options: dict[str, dict[str, str]]) -> dict[s
 
 def trace_resolved(plan: dict[str, Any]) -> Any:
     ex = plan.get("route", {}).get("executor")
+    if ex == "toolbox-chain":
+        return json.dumps({"steps": plan.get("steps")}, indent=2, default=str)
     if ex == "mongo-local":
         return json.dumps(
             {
@@ -1808,6 +1948,8 @@ def index() -> str:
                         yelp_rank_limit=int(plan.get("yelp_rank_limit", 5) or 5),
                         order_desc=bool(plan.get("order_desc", True)),
                     )
+            elif executor == "toolbox-chain":
+                response = execute_toolbox_chain_and_synthesize(user_input, plan)
             elif executor == "toolbox":
                 payload: dict[str, Any] = {}
                 if sql:
