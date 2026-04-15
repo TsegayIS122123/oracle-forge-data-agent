@@ -19,8 +19,8 @@ dispatches work across multiple devices.
 tenai-infra is the team's infrastructure-as-code layer around Tailscale mesh
 networking, tmux, and multi-CLI AI agent orchestration (Claude Code, Gemini
 CLI, Codex CLI). It is the same infrastructure used in Week 4
-(Brownfield Cartographer), per the Practitioner Manual. The repository
-lives at `/home/neba/tenx/week8-9/tenai`.
+(Brownfield Cartographer), per the Practitioner Manual. Source:
+`https://github.com/yabebalFantaye/tenai`.
 
 **What is installed and active:**
 
