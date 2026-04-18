@@ -39,3 +39,23 @@ This document tracks platforms and resources supporting development and evaluati
 
 Initial setup focused on communication and engagement platforms. Next phase focuses on compute and API resources for evaluation.
 
+
+---
+
+## Final Update — Week 9
+
+### Status
+
+- Core resources used:
+  • OpenRouter (model access)
+  • Local + shared infra (tenai-infra)
+  • GitHub for collaboration
+
+### Outcome
+
+- No external credits acquired, but system successfully built using available resources
+
+### Insight
+
+- Engineering discipline (evaluation, KB design) had more impact than additional compute resources
+

@@ -64,3 +64,32 @@ Community participation validated key engineering decisions:
 - Structured KB improves reliability  
 - Real systems require multi-layer context and evaluation  
 
+
+---
+
+## Final Community Engagement (Week 9)
+
+### X (Benchmark Thread)
+
+- Link:
+  https://x.com/TsegayAsse64592/status/2045556572181410254?s=20
+
+- Topic:
+  Benchmark results and system-level improvements
+
+- Contribution:
+  Shared real failure → fix → result (0.5 → 1.0)
+
+- Intelligence:
+  Strong engagement around system design vs model limitations
+
+---
+
+## Summary Update
+
+Final engagement confirms:
+
+- System design drives AI performance
+- Context engineering is critical
+- Evaluation loops are essential for reliability
+

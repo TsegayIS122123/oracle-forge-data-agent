@@ -86,3 +86,75 @@ This document captures Team Mistral’s external communication and knowledge-sha
 - Community discussions on evaluation and multi-database reasoning  
 - Benchmark-related posts after evaluation  
 
+
+---
+
+## Final Submission — Week 9 Engagement
+
+### Post 4 — Final Benchmark & System Results
+
+- LinkedIn:
+  https://www.linkedin.com/feed/update/urn:li:activity:7451318313089028096
+
+- Medium:
+  https://medium.com/p/e91af716c361?postPublishedType=initial
+
+- X (Twitter):
+  https://x.com/TsegayAsse64592/status/2045556572181410254?s=20
+
+- Focus:
+  Final system performance, evaluation insights, and engineering lessons from improving pass@1 from 0.5 → 1.0.
+
+---
+
+## Complete Engagement Portfolio
+
+### Medium Articles
+- Article 1:
+  https://medium.com/@tsegayassefa27/what-we-learned-fixing-our-ai-agent-80-100-fac4c1b0e87f
+
+- Article 2:
+  https://medium.com/p/e91af716c361?postPublishedType=initial
+
+---
+
+## Reach & Engagement (Approximate)
+
+- LinkedIn:
+  Multiple posts with technical discussion and visibility
+
+- X:
+  Threads generated engagement and technical questions
+
+- Reddit:
+  Community validation on context optimization
+
+---
+
+## Notable Responses
+
+- Reinforcement that context structure impacts performance
+- Agreement on join-key ambiguity as a major failure point
+- Feedback supporting evaluation-first development
+
+---
+
+## Community Intelligence That Changed Approach
+
+- Context must be minimal and structured (<400 tokens)
+- Join-key resolution must be explicit
+- Evaluation reveals hidden system failures
+- Correction loops improve system reliability
+
+---
+
+## Final Summary
+
+Signal Corps acted as a feedback loop between:
+external engagement → insight → system improvement
+
+This directly influenced:
+- KB restructuring
+- evaluation design
+- system reliability improvements
+
