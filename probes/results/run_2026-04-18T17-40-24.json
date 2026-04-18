@@ -1,0 +1,438 @@
+{
+  "run_timestamp": "2026-04-18T17-40-24",
+  "probes": {
+    "1.1": {
+      "id": "1.1",
+      "title": "Yelp Business-Review Join",
+      "category": "multi_db_routing",
+      "dataset": "yelp",
+      "query": "List the names and average star ratings of businesses that have at least 10 reviews mentioning 'service'",
+      "executor": "error",
+      "plan_reason": "Planner could not produce a JSON plan and the question did not match the city/state heuristic. Retry or name the city and state explicitly (e.g. City, Indiana).",
+      "plan_query": null,
+      "response": null,
+      "error": "Planner could not produce a JSON plan and the question did not match the city/state heuristic. Retry or name the city and state explicitly (e.g. City, Indiana).",
+      "duration_ms": 61922,
+      "passed": false,
+      "observed_failure": "Executor selected: error\nRouting reason: Planner could not produce a JSON plan and the question did not match the city/state heuristic. Retry or name the city and state explicitly (e.g. City, Indiana).\nPlanning failed \u2014 no executor chosen. Reason: Planner could not produce a JSON plan and the question did not match the city/state heuristic. Retry or name the city and state explicitly (e.g. City, Indiana)."
+    },
+    "1.2": {
+      "id": "1.2",
+      "title": "CRMArenaPro Customer-Ticket Correlation",
+      "category": "multi_db_routing",
+      "dataset": "crmarenapro",
+      "query": "Calculate the correlation between customer lifetime value and number of support tickets opened. Show top 10 customers with highest ticket-to-value ratio.",
+      "executor": "toolbox-chain",
+      "plan_reason": "The question requires data from the core_crm and products_orders databases to calculate customer lifetime value and the number of support tickets opened. The final result requires calculating a ratio and ranking the customers. (model: google/gemini-2.0-flash-001)",
+      "plan_query": null,
+      "response": null,
+      "error": "[Errno 2] No such file or directory: '/week8-9/oracle-forge-data-agent/agent/mcp/toolbox'",
+      "duration_ms": 2134,
+      "passed": false,
+      "observed_failure": "Executor selected: toolbox-chain\nRouting reason: The question requires data from the core_crm and products_orders databases to calculate customer lifetime value and the number of support tickets opened. The final result requires calculating a ratio and ranking the customers. (model: google/gemini-2.0-flash-001)\nExecution error: [Errno 2] No such file or directory: '/week8-9/oracle-forge-data-agent/agent/mcp/toolbox'"
+    },
+    "1.3": {
+      "id": "1.3",
+      "title": "AG News Article-Category Classification",
+      "category": "multi_db_routing",
+      "dataset": "agnews",
+      "query": "Count how many sports articles were published in the last 7 days from sources with credibility score above 0.8",
+      "executor": "sqlite-local",
+      "plan_reason": "Routed by DAB db_description overlap (3 tokens) to query_agnews; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.",
+      "plan_query": "SELECT name FROM sqlite_master WHERE type = 'table';",
+      "response": [
+        {
+          "name": "authors"
+        },
+        {
+          "name": "article_metadata"
+        }
+      ],
+      "error": null,
+      "duration_ms": 2549,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: Routed by DAB db_description overlap (3 tokens) to query_agnews; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.\nGenerated query: SELECT name FROM sqlite_master WHERE type = 'table';\nResponse (truncated): [{\"name\": \"authors\"}, {\"name\": \"article_metadata\"}]"
+    },
+    "1.4": {
+      "id": "1.4",
+      "title": "BookReview Book-Reviewer Aggregation",
+      "category": "multi_db_routing",
+      "dataset": "bookreview",
+      "query": "Find the top 5 reviewers who have given the highest average ratings, but only include reviewers who have reviewed at least 3 books published after 2010",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks for reviewers and their average ratings of books, along with a condition on the book's publication year. The review table in the bookreview database contains the reviewer's rating. The publication year is not available in this database. However, since the question asks for the top 5 reviewers, it is possible to find the top 5 reviewers based on the available data in the review table. The condition on the book's publication year cannot be applied. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT COUNT(*) AS review_count, AVG(rating) AS average_rating FROM review",
+      "response": [
+        {
+          "review_count": 1833,
+          "average_rating": 4.509001636661211
+        }
+      ],
+      "error": null,
+      "duration_ms": 2491,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks for reviewers and their average ratings of books, along with a condition on the book's publication year. The review table in the bookreview database contains the reviewer's rating. The publication year is not available in this database. However, since the question asks for the top 5 reviewers, it is possible to find the top 5 reviewers based on the available data in the review table. The condition on the book's publication year cannot be applied. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT COUNT(*) AS review_count, AVG(rating) AS average_rating FROM review\nResponse (truncated): [{\"review_count\": 1833, \"average_rating\": 4.509001636661211}]"
+    },
+    "1.5": {
+      "id": "1.5",
+      "title": "Google Local Business-Review Sentiment",
+      "category": "multi_db_routing",
+      "dataset": "googlelocal",
+      "query": "Find all restaurants in San Francisco with average rating above 4.0 that have at least one review mentioning 'slow service' in the last 30 days",
+      "executor": "sqlite-local",
+      "plan_reason": "Detected SQLite-oriented query intent.",
+      "plan_query": "SELECT name FROM sqlite_master WHERE type = 'table';",
+      "response": [
+        {
+          "name": "review"
+        }
+      ],
+      "error": null,
+      "duration_ms": 2852,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: Detected SQLite-oriented query intent.\nGenerated query: SELECT name FROM sqlite_master WHERE type = 'table';\nResponse (truncated): [{\"name\": \"review\"}]"
+    },
+    "2.1": {
+      "id": "2.1",
+      "title": "CRMArenaPro Customer ID Format (CUST-XXXXX vs Integer)",
+      "category": "ill_formatted_keys",
+      "dataset": "crmarenapro",
+      "query": "Show the total order value for each customer who opened a high-priority support ticket in Q3 2024",
+      "executor": "duckdb-local",
+      "plan_reason": "Routed by DAB db_description overlap (3 tokens) to query_crmarenapro; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.",
+      "plan_query": "SHOW TABLES;",
+      "response": [
+        {
+          "name": "Event"
+        },
+        {
+          "name": "Task"
+        },
+        {
+          "name": "VoiceCallTranscript__c"
+        }
+      ],
+      "error": null,
+      "duration_ms": 4546,
+      "passed": true,
+      "observed_failure": "Executor selected: duckdb-local\nRouting reason: Routed by DAB db_description overlap (3 tokens) to query_crmarenapro; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.\nGenerated query: SHOW TABLES;\nResponse (truncated): [{\"name\": \"Event\"}, {\"name\": \"Task\"}, {\"name\": \"VoiceCallTranscript__c\"}]"
+    },
+    "2.2": {
+      "id": "2.2",
+      "title": "CRMArenaPro Product Code vs SKU",
+      "category": "ill_formatted_keys",
+      "dataset": "crmarenapro",
+      "query": "List all products that have never been ordered, along with their category and list price",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks for a list of products that have never been ordered, along with their category and list price. This information is available in the products_orders.db database, specifically in the Product2, ProductCategoryProduct, ProductCategory, OrderItem, and PricebookEntry tables. The query needs to identify products that do not appear in the OrderItem table, indicating they have never been ordered. The category is in ProductCategory, and the list price is in PricebookEntry. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT\n  p.Name AS ProductName,\n  pc.Name AS CategoryName,\n  pbe.UnitPrice AS ListPrice\nFROM Product2 AS p\nJOIN ProductCategoryProduct AS pcp\n  ON p.Id = pcp.ProductId\nJOIN ProductCategory AS pc\n  ON pcp.ProductCategoryId = pc.Id\nLEFT JOIN OrderItem AS oi\n  ON p.Id = oi.Product2Id\nJOIN PricebookEntry AS pbe\n  ON p.Id = pbe.Product2Id\nWHERE\n  oi.Product2Id IS NULL;",
+      "response": [
+        {
+          "ProductName": "AutoLayout Master",
+          "CategoryName": "PCB Design Solutions",
+          "ListPrice": "499.99"
+        },
+        {
+          "ProductName": "AutoLayout Master",
+          "CategoryName": "Customizable Workflow Automation",
+          "ListPrice": "499.99"
+        },
+        {
+          "ProductName": "SimuCheck Ultra",
+          "CategoryName": "PCB Design Solutions",
+          "ListPrice": "499.99"
+        },
+        {
+          "ProductName": "EnergyReduce Pro",
+          "CategoryName": "Power Optimization Tools",
+          "ListPrice": "349.99"
+        },
+        {
+          "ProductName": "InnoTrain Hub",
+          "CategoryName": "AI-Powered Circuit Design Tools",
+          "ListPrice": "299.99"
+        },
+        {
+          "ProductName": "InnoTrain Hub",
+          "CategoryName": "Educational and Training Platforms",
+          "ListPrice": "299.99"
+        },
+        {
+          "ProductName": "PCB EcoModel  ",
+          "CategoryName": "PCB Design Solutions",
+          "ListPrice": "379.99"
+        },
+        {
+          "ProductName": "PCB EcoModel  ",
+          "CategoryName": "Power Optimization Tools",
+          "ListPrice": "379.99"
+        },
+        {
+          "ProductName": "CyberShield Core",
+          "CategoryName": "Security and Compliance Modules",
+          "ListPrice": "579.99"
+        },
+        {
+          "ProductName": "CyberShield Core",
+          "CategoryName": "Cloud-Based Design Collaboration   ",
+          "ListPrice": "579.99"
+        }
+      ],
+      "error": null,
+      "duration_ms": 2873,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks for a list of products that have never been ordered, along with their category and list price. This information is available in the products_orders.db database, specifically in the Product2, ProductCategoryProduct, ProductCategory, OrderItem, and PricebookEntry tables. The query needs to identify products that do not appear in the OrderItem table, indicating they have never been ordered. The category is in ProductCategory, and the list price is in PricebookEntry. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT\n  p.Name AS ProductName,\n  pc.Name AS CategoryName,\n  pbe.UnitPrice AS ListPrice\nFROM Product2 AS p\nJOIN ProductCategoryProduct AS pcp\n  ON p.Id = pcp.ProductId\nJOIN ProductCategory AS pc\n  ON \nResponse (truncated): [{\"ProductName\": \"AutoLayout Master\", \"CategoryName\": \"PCB Design Solutions\", \"ListPrice\": \"499.99\"}, {\"ProductName\": \"AutoLayout Master\", \"CategoryName\": \"Customizable Workflow Automation\", \"ListPrice\": \"499.99\"}, {\"ProductName\": \"SimuCheck Ultra\", \"CategoryName\": \"PCB Design Solutions\", \"ListPrice\": \"499.99\"}, {\"ProductName\": \"EnergyReduce Pro\", \"CategoryName\": \"Power Optimization Tools\", \"ListP\u2026"
+    },
+    "2.3": {
+      "id": "2.3",
+      "title": "BookReview Book ID Field Name Mismatch",
+      "category": "ill_formatted_keys",
+      "dataset": "bookreview",
+      "query": "Find the average rating for each book published in 2020 or later",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks for the average rating for books published in 2020 or later. The review table in the bookreview database contains the rating information. The publication year is not available in the SQLite database, so I will only calculate the average rating from the reviews available in the SQLite database. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT AVG(rating) FROM review",
+      "response": [
+        {
+          "AVG(rating)": 4.509001636661211
+        }
+      ],
+      "error": null,
+      "duration_ms": 2390,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks for the average rating for books published in 2020 or later. The review table in the bookreview database contains the rating information. The publication year is not available in the SQLite database, so I will only calculate the average rating from the reviews available in the SQLite database. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT AVG(rating) FROM review\nResponse (truncated): [{\"AVG(rating)\": 4.509001636661211}]"
+    },
+    "2.4": {
+      "id": "2.4",
+      "title": "AG News Title-Based Join (No ID Match)",
+      "category": "ill_formatted_keys",
+      "dataset": "agnews",
+      "query": "What is the most common news category for articles from high-credibility sources (score > 0.9)?",
+      "executor": "sqlite-local",
+      "plan_reason": "Routed by DAB db_description overlap (3 tokens) to query_agnews; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.",
+      "plan_query": "SELECT name FROM sqlite_master WHERE type = 'table';",
+      "response": [
+        {
+          "name": "authors"
+        },
+        {
+          "name": "article_metadata"
+        }
+      ],
+      "error": null,
+      "duration_ms": 3141,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: Routed by DAB db_description overlap (3 tokens) to query_agnews; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.\nGenerated query: SELECT name FROM sqlite_master WHERE type = 'table';\nResponse (truncated): [{\"name\": \"authors\"}, {\"name\": \"article_metadata\"}]"
+    },
+    "2.5": {
+      "id": "2.5",
+      "title": "CRMArenaPro Order ID Format (ORD-YYYY-XXXXX)",
+      "category": "ill_formatted_keys",
+      "dataset": "crmarenapro",
+      "query": "Find all support tickets related to orders placed in December 2024",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks for support tickets related to orders. The products_orders.db database contains the Order table, which has an EffectiveDate column that can be used to filter orders placed in December 2024. There is no mention of support tickets in the schema, so I will assume the user meant to find orders placed in December 2024. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT * FROM \"Order\" WHERE strftime('%Y-%m', EffectiveDate) = '2024-12'",
+      "response": [],
+      "error": null,
+      "duration_ms": 2297,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks for support tickets related to orders. The products_orders.db database contains the Order table, which has an EffectiveDate column that can be used to filter orders placed in December 2024. There is no mention of support tickets in the schema, so I will assume the user meant to find orders placed in December 2024. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT * FROM \"Order\" WHERE strftime('%Y-%m', EffectiveDate) = '2024-12'\nResponse (truncated): []"
+    },
+    "3.1": {
+      "id": "3.1",
+      "title": "Yelp Review Keyword Counting",
+      "category": "unstructured_text",
+      "dataset": "yelp",
+      "query": "How many reviews mention 'wait time' or 'waiting' and have a rating of 2 stars or less?",
+      "executor": "sqlite-local",
+      "plan_reason": "Routed by DAB db_description overlap (3 tokens) to query_googlelocal; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.",
+      "plan_query": "SELECT name FROM sqlite_master WHERE type = 'table';",
+      "response": [
+        {
+          "name": "review"
+        }
+      ],
+      "error": null,
+      "duration_ms": 2102,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: Routed by DAB db_description overlap (3 tokens) to query_googlelocal; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.\nGenerated query: SELECT name FROM sqlite_master WHERE type = 'table';\nResponse (truncated): [{\"name\": \"review\"}]"
+    },
+    "3.2": {
+      "id": "3.2",
+      "title": "CRMArenaPro Support Ticket Sentiment",
+      "category": "unstructured_text",
+      "dataset": "crmarenapro",
+      "query": "Calculate the percentage of support tickets that express negative sentiment, grouped by customer segment",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks for sentiment analysis of support tickets, which can be interpreted as book reviews in this context. The review table in the bookreview database contains text and other relevant information. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT CAST(SUM(CASE WHEN LENGTH(text) > 0 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(*) AS percentage_negative FROM review WHERE rating < 3",
+      "response": [
+        {
+          "percentage_negative": 100.0
+        }
+      ],
+      "error": null,
+      "duration_ms": 1925,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks for sentiment analysis of support tickets, which can be interpreted as book reviews in this context. The review table in the bookreview database contains text and other relevant information. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT CAST(SUM(CASE WHEN LENGTH(text) > 0 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(*) AS percentage_negative FROM review WHERE rating < 3\nResponse (truncated): [{\"percentage_negative\": 100.0}]"
+    },
+    "3.3": {
+      "id": "3.3",
+      "title": "Google Local Review Attribute Extraction",
+      "category": "unstructured_text",
+      "dataset": "googlelocal",
+      "query": "Which restaurants have the most reviews mentioning 'friendly staff' or 'great service'? Show top 10.",
+      "executor": "duckdb-local",
+      "plan_reason": "Routed by DAB db_description overlap (2 tokens) to query_yelp; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.",
+      "plan_query": "SHOW TABLES;",
+      "response": [
+        {
+          "name": "review"
+        },
+        {
+          "name": "tip"
+        },
+        {
+          "name": "user"
+        }
+      ],
+      "error": null,
+      "duration_ms": 2517,
+      "passed": true,
+      "observed_failure": "Executor selected: duckdb-local\nRouting reason: Routed by DAB db_description overlap (2 tokens) to query_yelp; refine SQL or set OPENROUTER_API_KEY for planner-generated queries.\nGenerated query: SHOW TABLES;\nResponse (truncated): [{\"name\": \"review\"}, {\"name\": \"tip\"}, {\"name\": \"user\"}]"
+    },
+    "3.4": {
+      "id": "3.4",
+      "title": "AG News Article Category Prediction",
+      "category": "unstructured_text",
+      "dataset": "agnews",
+      "query": "Find all articles from the last 30 days that discuss 'artificial intelligence' but are NOT categorized as Sci/Tech",
+      "executor": "error",
+      "plan_reason": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "plan_query": null,
+      "response": null,
+      "error": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "duration_ms": 2222,
+      "passed": false,
+      "observed_failure": "Executor selected: error\nRouting reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/\nPlanning failed \u2014 no executor chosen. Reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/"
+    },
+    "3.5": {
+      "id": "3.5",
+      "title": "BookReview Review-Text Rating Consistency",
+      "category": "unstructured_text",
+      "dataset": "bookreview",
+      "query": "Find reviews where the text expresses strong negative sentiment but the rating is 4 or 5 stars. Count how many such inconsistent reviews exist.",
+      "executor": "sqlite-local",
+      "plan_reason": "The question asks to find reviews with specific sentiment and rating, and count them. The review table in the bookreview database contains the rating and text of the reviews, which can be used to determine sentiment. (model: google/gemini-2.0-flash-001)",
+      "plan_query": "SELECT COUNT(*) FROM review WHERE rating IN (4, 5) AND text LIKE '%bad%' OR text LIKE '%terrible%' OR text LIKE '%awful%' OR text LIKE '%disappointing%' OR text LIKE '%poor%'",
+      "response": [
+        {
+          "COUNT(*)": 60
+        }
+      ],
+      "error": null,
+      "duration_ms": 2084,
+      "passed": true,
+      "observed_failure": "Executor selected: sqlite-local\nRouting reason: The question asks to find reviews with specific sentiment and rating, and count them. The review table in the bookreview database contains the rating and text of the reviews, which can be used to determine sentiment. (model: google/gemini-2.0-flash-001)\nGenerated query: SELECT COUNT(*) FROM review WHERE rating IN (4, 5) AND text LIKE '%bad%' OR text LIKE '%terrible%' OR text LIKE '%awful%' OR text LIKE '%disappointing%' OR text LIKE '%poor%'\nResponse (truncated): [{\"COUNT(*)\": 60}]"
+    },
+    "4.1": {
+      "id": "4.1",
+      "title": "\"Active Customer\" Definition (Yelp)",
+      "category": "domain_knowledge",
+      "dataset": "yelp",
+      "query": "Show the geographic distribution of active users across different states",
+      "executor": "yelp-analytics",
+      "plan_reason": "The question asks for the geographic distribution of active users, which can be inferred from the location of businesses they review. The yelp-analytics tool is suitable for analyzing Yelp data, and the business collection in MongoDB contains location information (description field with address text). (model: google/gemini-2.0-flash-001)",
+      "plan_query": null,
+      "response": {
+        "businesses_matched": 0,
+        "review_refs": [],
+        "message": "No businesses matched this location filter (or business_id could not map to review.business_ref). The DAB Yelp Mongo collection is a small subset (~100 businesses) and often does not include every city (e.g. Los Angeles may be absent). Descriptions use forms like 'City, ST'. For a smoke test, try a city present in your loaded data (e.g. Philadelphia, PA or Indianapolis, IN)."
+      },
+      "error": null,
+      "duration_ms": 2479,
+      "passed": true,
+      "observed_failure": "Executor selected: yelp-analytics\nRouting reason: The question asks for the geographic distribution of active users, which can be inferred from the location of businesses they review. The yelp-analytics tool is suitable for analyzing Yelp data, and the business collection in MongoDB contains location information (description field with address text). (model: google/gemini-2.0-flash-001)\nResponse (truncated): {\"businesses_matched\": 0, \"review_refs\": [], \"message\": \"No businesses matched this location filter (or business_id could not map to review.business_ref). The DAB Yelp Mongo collection is a small subset (~100 businesses) and often does not include every city (e.g. Los Angeles may be absent). Descriptions use forms like 'City, ST'. For a smoke test, try a city present in your loaded data (e.g. Phil\u2026"
+    },
+    "4.2": {
+      "id": "4.2",
+      "title": "\"Churn\" Definition (CRMArenaPro)",
+      "category": "domain_knowledge",
+      "dataset": "crmarenapro",
+      "query": "Calculate the churn rate for enterprise customers in Q4 2024",
+      "executor": "error",
+      "plan_reason": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "plan_query": null,
+      "response": null,
+      "error": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "duration_ms": 3582,
+      "passed": false,
+      "observed_failure": "Executor selected: error\nRouting reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/\nPlanning failed \u2014 no executor chosen. Reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/"
+    },
+    "4.3": {
+      "id": "4.3",
+      "title": "\"Recent\" Temporal Scope (AG News)",
+      "category": "domain_knowledge",
+      "dataset": "agnews",
+      "query": "Show the most common topics in recent business news",
+      "executor": "mongo-local",
+      "plan_reason": "The question asks for the most common topics in recent business news. The AG News dataset contains articles with titles and descriptions, and the category (World/Sports/Business/Science) is determined by the content of the title and description. The articles collection in the articles_db database is the appropriate source. We can use aggregation to find the most common topics. (model: google/gemini-2.0-flash-001)",
+      "plan_query": null,
+      "response": [],
+      "error": null,
+      "duration_ms": 3624,
+      "passed": true,
+      "observed_failure": "Executor selected: mongo-local\nRouting reason: The question asks for the most common topics in recent business news. The AG News dataset contains articles with titles and descriptions, and the category (World/Sports/Business/Science) is determined by the content of the title and description. The articles collection in the articles_db database is the appropriate source. We can use aggregation to find the most common topics. (model: google/gemini-2.0-flash-001)\nResponse (truncated): []"
+    },
+    "4.4": {
+      "id": "4.4",
+      "title": "\"High-Value Customer\" Threshold (CRMArenaPro)",
+      "category": "domain_knowledge",
+      "dataset": "crmarenapro",
+      "query": "Compare the average support ticket resolution time for high-value customers versus regular customers",
+      "executor": "toolbox-chain",
+      "plan_reason": "The question requires analyzing data from the CRM database, specifically comparing support ticket resolution times for different customer segments. This requires accessing and joining data from multiple tables within the CRM database, which is best handled using a toolbox-chain approach. (model: google/gemini-2.0-flash-001)",
+      "plan_query": null,
+      "response": null,
+      "error": "[Errno 2] No such file or directory: '/week8-9/oracle-forge-data-agent/agent/mcp/toolbox'",
+      "duration_ms": 3025,
+      "passed": false,
+      "observed_failure": "Executor selected: toolbox-chain\nRouting reason: The question requires analyzing data from the CRM database, specifically comparing support ticket resolution times for different customer segments. This requires accessing and joining data from multiple tables within the CRM database, which is best handled using a toolbox-chain approach. (model: google/gemini-2.0-flash-001)\nExecution error: [Errno 2] No such file or directory: '/week8-9/oracle-forge-data-agent/agent/mcp/toolbox'"
+    },
+    "4.5": {
+      "id": "4.5",
+      "title": "\"Rating\" vs \"Stars\" Distinction (Yelp)",
+      "category": "domain_knowledge",
+      "dataset": "yelp",
+      "query": "Find businesses where the average rating is above 4.0 but the most recent 10 reviews average below 3.0",
+      "executor": "yelp-analytics",
+      "plan_reason": "The question requires filtering businesses based on both overall average rating and the average of the most recent 10 reviews. This requires cross-database aggregation between MongoDB (business info) and DuckDB (reviews). The yelp-analytics executor is designed for this type of task. (model: google/gemini-2.0-flash-001)",
+      "plan_query": null,
+      "response": {
+        "businesses_matched": 0,
+        "review_refs": [],
+        "message": "No businesses matched this location filter (or business_id could not map to review.business_ref). The DAB Yelp Mongo collection is a small subset (~100 businesses) and often does not include every city (e.g. Los Angeles may be absent). Descriptions use forms like 'City, ST'. For a smoke test, try a city present in your loaded data (e.g. Philadelphia, PA or Indianapolis, IN)."
+      },
+      "error": null,
+      "duration_ms": 2855,
+      "passed": true,
+      "observed_failure": "Executor selected: yelp-analytics\nRouting reason: The question requires filtering businesses based on both overall average rating and the average of the most recent 10 reviews. This requires cross-database aggregation between MongoDB (business info) and DuckDB (reviews). The yelp-analytics executor is designed for this type of task. (model: google/gemini-2.0-flash-001)\nResponse (truncated): {\"businesses_matched\": 0, \"review_refs\": [], \"message\": \"No businesses matched this location filter (or business_id could not map to review.business_ref). The DAB Yelp Mongo collection is a small subset (~100 businesses) and often does not include every city (e.g. Los Angeles may be absent). Descriptions use forms like 'City, ST'. For a smoke test, try a city present in your loaded data (e.g. Phil\u2026"
+    },
+    "5.1": {
+      "id": "5.1",
+      "title": "Complex Multi-Category Probe (CRMArenaPro)",
+      "category": "multi_category",
+      "dataset": "crmarenapro",
+      "query": "Identify high-value customers who have shown signs of churn risk (multiple recent support tickets with negative sentiment) but have not been contacted by sales in the last 30 days. Show their lifetime value and recommended next action.",
+      "executor": "error",
+      "plan_reason": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "plan_query": null,
+      "response": null,
+      "error": "No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/",
+      "duration_ms": 2334,
+      "passed": false,
+      "observed_failure": "Executor selected: error\nRouting reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/\nPlanning failed \u2014 no executor chosen. Reason: No routing signal matched this question (keywords, LLM planner, or DAB description overlap). Set OPENROUTER_API_KEY for full routing, name a dataset (e.g. query_agnews), or paste SQL. See https://ucbepic.github.io/DataAgentBench/"
+    }
+  }
+}

@@ -441,7 +441,30 @@ def _replace_probe_score_before(content: str, probe_id: str, score: int) -> str:
     if next_idx == -1:
         next_idx = len(content)
     section = content[idx:next_idx]
-    new_section = section.replace("**Score Before Fix:** ___ / 1", f"**Score Before Fix:** {score} / 1")
+    new_section = re.sub(
+        r"\*\*Score Before Fix:\*\* [^\n]+ / 1",
+        f"**Score Before Fix:** {score} / 1",
+        section,
+    )
+    return content[:idx] + new_section + content[next_idx:]
+
+
+def _replace_probe_fix_applied(content: str, probe_id: str, text: str) -> str:
+    """Replace the content inside the ``` block after **Fix Applied:** for one probe."""
+    marker = f"#### Probe {probe_id}:"
+    idx = content.find(marker)
+    if idx == -1:
+        return content
+    next_idx = content.find("#### Probe ", idx + len(marker))
+    if next_idx == -1:
+        next_idx = len(content)
+    section = content[idx:next_idx]
+    new_section = re.sub(
+        r"(\*\*Fix Applied:\*\*\n```\n).*?(\n```)",
+        lambda m: m.group(1) + text + m.group(2),
+        section,
+        flags=re.DOTALL,
+    )
     return content[:idx] + new_section + content[next_idx:]
 
 
@@ -454,8 +477,43 @@ def _replace_probe_score_after(content: str, probe_id: str, score: int) -> str:
     if next_idx == -1:
         next_idx = len(content)
     section = content[idx:next_idx]
-    new_section = section.replace("**Score After Fix:** ___ / 1", f"**Score After Fix:** {score} / 1")
+    new_section = re.sub(
+        r"\*\*Score After Fix:\*\* [^\n]+ / 1",
+        f"**Score After Fix:** {score} / 1",
+        section,
+    )
     return content[:idx] + new_section + content[next_idx:]
+
+
+_FIX_HINTS: dict[str, str] = {
+    "multi_db_routing": (
+        "Route sub-queries to the correct database for each entity type; "
+        "merge results in Python rather than attempting a cross-DB JOIN."
+    ),
+    "ill_formatted_keys": (
+        "Detect ID format mismatch (e.g. CUST-XXXXX vs integer) before joining; "
+        "normalize keys with a helper function or cast in SQL."
+    ),
+    "unstructured_text": (
+        "Extract structured data from free-text fields on the Python side "
+        "before aggregation (two-pass: query → text filter → aggregate)."
+    ),
+    "domain_knowledge": (
+        "Inject dataset-specific term definitions from the KB (domain_terms.md) "
+        "before planning; use documented thresholds for 'active', 'churn', 'high-value', etc."
+    ),
+    "multi_category": (
+        "Combined: apply multi-DB routing + domain term injection + key normalization as needed."
+    ),
+}
+
+
+def describe_fix(result: dict[str, Any], run_date: str) -> str:
+    """Generate a Fix Applied description from a fixed-run result."""
+    hint = _FIX_HINTS.get(result["category"], "Investigate and document the fix.")
+    if result["passed"]:
+        return f"Verified {run_date}: probe now passes.\nFix pattern: {hint}"
+    return f"Re-tested {run_date}: probe still fails.\nSuggested fix: {hint}"
 
 
 def _parse_table_baseline(content: str) -> dict[str, str]:
@@ -582,7 +640,7 @@ def update_probes_md(results: list[dict[str, Any]], timestamp: str, mode: str = 
     # 1. Replace summary stats table
     new_table = _build_summary_table(results, mode=mode, existing_content=content)
     content = re.sub(
-        r"\| Category \| Probes Count \| Baseline Pass Rate.*?\| \*\*TOTAL\*\*.*?\|",
+        r"\| Category \| Probes Count \| Baseline Pass Rate.*?\| \*\*TOTAL\*\*[^\n]+",
         new_table,
         content,
         flags=re.DOTALL,
@@ -595,6 +653,7 @@ def update_probes_md(results: list[dict[str, Any]], timestamp: str, mode: str = 
             content = _replace_probe_score_before(content, r["id"], 1 if r["passed"] else 0)
         else:
             content = _replace_probe_score_after(content, r["id"], 1 if r["passed"] else 0)
+            content = _replace_probe_fix_applied(content, r["id"], describe_fix(r, run_date))
 
     # 3. Stamp the run date in the Maintenance Log table
     run_date = timestamp[:10]
@@ -693,8 +752,8 @@ _Post-fix runs will appear here after fixes are applied and re-run._
             if IMPROVEMENT_LOG.exists()
             else "# Probe Library Improvement Log\n\n"
         )
-        # Remove trailing sentinel line so the new section replaces it
-        existing = re.sub(r"\n_Post-fix runs will appear.*?_\s*$", "", existing, flags=re.DOTALL)
+        # Remove trailing sentinel and its preceding separator so we don't double up on ---
+        existing = re.sub(r"\n---\n\n_Post-fix runs will appear.*?_\s*$", "", existing, flags=re.DOTALL)
         IMPROVEMENT_LOG.write_text(existing.rstrip() + "\n" + new_section, encoding="utf-8")
 
     print(f"  Updated {IMPROVEMENT_LOG.relative_to(ROOT)}")

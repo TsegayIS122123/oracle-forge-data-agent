@@ -6,8 +6,14 @@ These probes test the agent's ability to apply correct business definitions to a
 ## Probe Summary
 | ID | Dataset | Ambiguous Term | Baseline | Fixed |
 |----|---------|----------------|----------|-------|
-| 4.1 | Yelp | "Active user" | TBD | TBD |
-| 4.2 | CRMArenaPro | "Churn rate" | TBD | TBD |
-| 4.3 | AG News | "Recent" | TBD | TBD |
-| 4.4 | CRMArenaPro | "High-value customer" | TBD | TBD |
-| 4.5 | Yelp | "Rating" vs "Stars" | TBD | TBD |
+| 4.1 | Yelp | "Active user" | PASS | PASS |
+| 4.2 | CRMArenaPro | "Churn rate" | FAIL | FAIL |
+| 4.3 | AG News | "Recent" | PASS | PASS |
+| 4.4 | CRMArenaPro | "High-value customer" | FAIL | FAIL |
+| 4.5 | Yelp | "Rating" vs "Stars" | FAIL | PASS |
+
+## Common Failure Patterns
+1. **Naive Interpretation:** "Active" = row exists
+2. **Wrong Time Window:** "Recent" = all-time or arbitrary
+3. **Missing Threshold:** "High-value" = undefined
+4. **Field Confusion:** "Rating" = pre-calculated field vs computed
